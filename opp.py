@@ -89,32 +89,38 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
         with st.container(border=True):
             st.markdown(f"**{factory}**")
             
-            # 본공장 상태
+            # 본공장 상태 [수정됨: 색상 로직 개선]
             m_used = usage_data[factory]["Main"]
             m_total = info['Main']
-            m_color = "red" if m_used >= m_total and m_total > 0 else "black"
-            st.markdown(f"본공장: :{m_color}[{m_used} / {m_total}]")
             
-            # 외주공장 상태
+            if m_used >= m_total and m_total > 0:
+                # 꽉 찼으면 빨간색
+                st.markdown(f"본공장: :red[{m_used} / {m_total}]")
+            else:
+                # 여유 있으면 기본색 (숫자 그대로 표시)
+                st.markdown(f"본공장: {m_used} / {m_total}")
+            
+            # 외주공장 상태 [수정됨: 색상 로직 개선]
             o_used = usage_data[factory]["Outsourced"]
             o_total = info['Outsourced']
-            o_color = "red" if o_used >= o_total and o_total > 0 else "black"
-            st.markdown(f"외주공장: :{o_color}[{o_used} / {o_total}]")
+            
+            if o_used >= o_total and o_total > 0:
+                st.markdown(f"외주공장: :red[{o_used} / {o_total}]")
+            else:
+                st.markdown(f"외주공장: {o_used} / {o_total}")
 
 st.markdown("---")
 
-# --- 6. 생산 오더 입력 (바이어 입력 분리) ---
+# --- 6. 생산 오더 입력 ---
 st.subheader("📝 생산 오더 입력")
 
-# [변경 포인트] 바이어 입력을 폼 밖으로 꺼내서 즉시 반응하게 함
 col_buyer, col_link1, col_link2 = st.columns([2, 1, 1])
 
 with col_buyer:
     buyer = st.text_input("바이어 (Buyer)", placeholder="기업명을 입력하세요")
 
-# 버튼 표시 로직: 바이어 이름이 입력되어야 활성화
 with col_link1:
-    st.write("") # 줄맞춤용 공백
+    st.write("") 
     st.write("") 
     if buyer:
         google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
@@ -123,7 +129,7 @@ with col_link1:
         st.button("기업 신용도(구글)", disabled=True, use_container_width=True)
 
 with col_link2:
-    st.write("") # 줄맞춤용 공백
+    st.write("")
     st.write("")
     if buyer:
         gemini_url = "https://gemini.google.com/app"
@@ -134,7 +140,6 @@ with col_link2:
 if buyer:
     st.caption(f"Tip: Gemini 버튼 클릭 후 입력창에 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
 
-# [나머지 입력 폼]
 with st.form("order_form"):
     c1, c2, c3 = st.columns(3)
     style = c1.text_input("스타일 (Style)")
@@ -153,14 +158,12 @@ with st.form("order_form"):
         if not buyer or not style or qty == 0:
             st.error("바이어, 스타일, 수량을 정확히 입력해주세요.")
         else:
-            # Capa Check
             current_u = usage_data[country][prod_type]
             limit = st.session_state.factory_info[country][prod_type]
             
             if current_u + lines > limit:
                 st.warning(f"⚠️ 용량 초과 경고! (잔여: {limit - current_u} / 필요: {lines}) 하지만 등록은 진행됩니다.")
             
-            # 데이터 저장
             new_order = {
                 "바이어": buyer, "스타일": style, "수량": qty,
                 "납기일": str(del_date), "국가": country, "생산구분": prod_type,
@@ -176,19 +179,4 @@ c_list, c_down = st.columns([4, 1])
 c_list.subheader("📋 오더 리스트")
 
 if st.session_state.orders:
-    df = pd.DataFrame(st.session_state.orders)
-    st.dataframe(df, use_container_width=True)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
-    excel_data = output.getvalue()
-    
-    c_down.download_button(
-        label="📥 엑셀로 저장하기",
-        data=excel_data,
-        file_name="production_schedule_web.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-else:
-    st.info("등록된 오더가 없습니다.")
+    df = pd.DataFrame
