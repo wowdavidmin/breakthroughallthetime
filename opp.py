@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+import numpy as np
+from datetime import datetime, timedelta
 import io
 
 # --- 1. 페이지 설정 ---
@@ -9,12 +10,12 @@ st.set_page_config(page_title="Global Production Manager", layout="wide")
 # --- 2. 데이터 초기화 (Session State) ---
 if 'factory_info' not in st.session_state:
     st.session_state.factory_info = {
-        "베트남(VNM)":      {"Region": "Asia", "Main": 30, "Outsourced": 20},
-        "인도네시아(IDN)":   {"Region": "Asia", "Main": 25, "Outsourced": 15},
-        "미얀마(MMR-내수)":  {"Region": "Asia", "Main": 20, "Outsourced": 10},
-        "과테말라(GTM)":     {"Region": "Central America", "Main": 20, "Outsourced": 10},
-        "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5},
-        "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5}
+        "베트남(VNM)":      {"Region": "Asia", "Main": 30, "Outsourced": 20, "Currency": "VND"},
+        "인도네시아(IDN)":   {"Region": "Asia", "Main": 25, "Outsourced": 15, "Currency": "IDR"},
+        "미얀마(MMR-내수)":  {"Region": "Asia", "Main": 20, "Outsourced": 10, "Currency": "MMK"},
+        "과테말라(GTM)":     {"Region": "Central America", "Main": 20, "Outsourced": 10, "Currency": "GTQ"},
+        "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5, "Currency": "NIO"},
+        "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
 
 if 'orders' not in st.session_state:
@@ -23,8 +24,9 @@ if 'orders' not in st.session_state:
 if 'history_log' not in st.session_state:
     st.session_state.history_log = []
 
-# --- 3. 사이드바 (관리자 모드) ---
+# --- 3. 사이드바 (관리자 & 환율 정보) ---
 with st.sidebar:
+    # [섹션 1] 관리자 설정
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
@@ -37,18 +39,13 @@ with st.sidebar:
             for factory, info in st.session_state.factory_info.items():
                 st.markdown(f"**{factory}**")
                 col_m, col_o = st.columns(2)
-                
-                # Main Capa 수정
                 new_m = col_m.number_input(f"{factory} 본공장", value=info['Main'], key=f"{factory}_m")
-                # Outsourced Capa 수정
                 new_o = col_o.number_input(f"{factory} 외주", value=info['Outsourced'], key=f"{factory}_o")
                 
-                # 변경 감지 및 저장
                 if new_m != info['Main']:
                     st.session_state.history_log.append({
                         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "factory": factory, "type": "Main", 
-                        "old": info['Main'], "new": new_m
+                        "factory": factory, "type": "Main", "old": info['Main'], "new": new_m
                     })
                     st.session_state.factory_info[factory]['Main'] = new_m
                     st.rerun()
@@ -56,8 +53,7 @@ with st.sidebar:
                 if new_o != info['Outsourced']:
                     st.session_state.history_log.append({
                         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "factory": factory, "type": "Outsourced", 
-                        "old": info['Outsourced'], "new": new_o
+                        "factory": factory, "type": "Outsourced", "old": info['Outsourced'], "new": new_o
                     })
                     st.session_state.factory_info[factory]['Outsourced'] = new_o
                     st.rerun()
@@ -69,40 +65,76 @@ with st.sidebar:
             else:
                 st.info("수정 이력이 없습니다.")
 
+    st.markdown("---")
+    
+    # [섹션 2] 환율 정보 대시보드 (New)
+    st.header("💱 국가별 환율 (USD 기준)")
+    st.caption("※ 최근 30일 추이 (Simulation Data)")
+
+    # 환율 데이터 생성 함수 (실제 API 대신 데모용 데이터 생성)
+    def get_dummy_exchange_data(currency_code):
+        dates = pd.date_range(end=datetime.now(), periods=30)
+        # 국가별 대략적인 환율 기준값
+        base_rates = {
+            "VND": 25400, "IDR": 16200, "MMK": 2100, 
+            "GTQ": 7.8, "NIO": 36.8, "HTG": 132.5
+        }
+        base = base_rates.get(currency_code, 1000)
+        # 랜덤 변동폭 생성
+        volatility = base * 0.02 
+        values = base + np.random.randn(30).cumsum() * (volatility * 0.1)
+        
+        return pd.DataFrame({"Rate": values}, index=dates), values[-1], values[-1] - values[-2]
+
+    # 각 국가별 환율 카드 생성
+    for factory, info in st.session_state.factory_info.items():
+        currency = info.get("Currency", "USD")
+        
+        # 아코디언 형태로 국가별 환율 정보 표시
+        with st.expander(f"{factory} - {currency}", expanded=False):
+            df_rate, current_rate, delta = get_dummy_exchange_data(currency)
+            
+            # 1. 현재 환율 지표
+            st.metric(
+                label=f"USD to {currency}",
+                value=f"{current_rate:,.2f}",
+                delta=f"{delta:,.2f}"
+            )
+            
+            # 2. 추이 그래프
+            st.line_chart(df_rate, height=100)
+            
+            # 3. 구글 검색 링크
+            url = f"https://www.google.com/search?q=USD+to+{currency}+exchange+rate"
+            st.link_button(f"🔍 Google 환율 확인 ({currency})", url, use_container_width=True)
+
 # --- 4. 메인 타이틀 ---
-# 모바일 화면 줄바꿈 방지 적용
 st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- 5. 대시보드 (가동 현황) ---
 st.subheader("🏭 국가별 공장 가동 현황")
 
-# 현재 사용량 계산
 usage_data = {f: {"Main": 0, "Outsourced": 0} for f in st.session_state.factory_info}
 for item in st.session_state.orders:
     if item["국가"] in usage_data:
         usage_data[item["국가"]][item["생산구분"]] += item["사용라인"]
 
-# 대시보드 카드 그리기
 cols = st.columns(3)
 for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
     with cols[idx % 3]:
         with st.container(border=True):
             st.markdown(f"**{factory}**")
             
-            # 본공장 상태 (검정색 표시 오류 수정됨)
             m_used = usage_data[factory]["Main"]
             m_total = info['Main']
-            
             if m_used >= m_total and m_total > 0:
                 st.markdown(f"본공장: :red[{m_used} / {m_total}]")
             else:
                 st.markdown(f"본공장: {m_used} / {m_total}")
             
-            # 외주공장 상태
             o_used = usage_data[factory]["Outsourced"]
             o_total = info['Outsourced']
-            
             if o_used >= o_total and o_total > 0:
                 st.markdown(f"외주공장: :red[{o_used} / {o_total}]")
             else:
@@ -113,7 +145,6 @@ st.markdown("---")
 # --- 6. 생산 오더 입력 ---
 st.subheader("📝 생산 오더 입력")
 
-# [수정 포인트] vertical_alignment="bottom"을 사용하여 줄맞춤 코드를 제거하고 깔끔하게 정렬
 col_buyer, col_link1, col_link2 = st.columns([2, 1, 1], vertical_alignment="bottom")
 
 with col_buyer:
