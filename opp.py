@@ -7,7 +7,6 @@ import io
 st.set_page_config(page_title="Global Production Manager", layout="wide")
 
 # --- 2. 데이터 초기화 (Session State) ---
-# 웹은 새로고침하면 데이터가 날아가므로, Session State에 저장해야 함
 if 'factory_info' not in st.session_state:
     st.session_state.factory_info = {
         "베트남(VNM)":      {"Region": "Asia", "Main": 30, "Outsourced": 20},
@@ -83,7 +82,7 @@ for item in st.session_state.orders:
     if item["국가"] in usage_data:
         usage_data[item["국가"]][item["생산구분"]] += item["사용라인"]
 
-# 대시보드 카드 그리기 (3열로 배치)
+# 대시보드 카드 그리기
 cols = st.columns(3)
 for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
     with cols[idx % 3]:
@@ -104,21 +103,49 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
 
 st.markdown("---")
 
-# --- 6. 생산 오더 입력 폼 ---
+# --- 6. 생산 오더 입력 (바이어 입력 분리) ---
 st.subheader("📝 생산 오더 입력")
 
-with st.form("order_form"):
-    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-    buyer = c1.text_input("바이어 (Buyer)")
-    style = c2.text_input("스타일 (Style)")
-    qty = c3.number_input("수량 (Q'ty)", min_value=0, step=100)
-    del_date = c4.date_input("납기일", datetime.now())
+# [변경 포인트] 바이어 입력을 폼 밖으로 꺼내서 즉시 반응하게 함
+col_buyer, col_link1, col_link2 = st.columns([2, 1, 1])
 
-    c5, c6, c7, c8 = st.columns([1.5, 1, 1.5, 1])
-    country = c5.selectbox("국가 선택", list(st.session_state.factory_info.keys()))
-    prod_type = c6.selectbox("생산 구분", ["Main", "Outsourced"])
-    detail_name = c7.text_input("상세 공장명", "공장 이름 입력")
-    lines = c8.number_input("필요 라인", min_value=1, value=1)
+with col_buyer:
+    buyer = st.text_input("바이어 (Buyer)", placeholder="기업명을 입력하세요")
+
+# 버튼 표시 로직: 바이어 이름이 입력되어야 활성화
+with col_link1:
+    st.write("") # 줄맞춤용 공백
+    st.write("") 
+    if buyer:
+        google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
+        st.link_button("기업 신용도(구글)", google_url, use_container_width=True)
+    else:
+        st.button("기업 신용도(구글)", disabled=True, use_container_width=True)
+
+with col_link2:
+    st.write("") # 줄맞춤용 공백
+    st.write("")
+    if buyer:
+        gemini_url = "https://gemini.google.com/app"
+        st.link_button("기업 신용도(gemini)", gemini_url, use_container_width=True)
+    else:
+        st.button("기업 신용도(gemini)", disabled=True, use_container_width=True)
+
+if buyer:
+    st.caption(f"Tip: Gemini 버튼 클릭 후 입력창에 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
+
+# [나머지 입력 폼]
+with st.form("order_form"):
+    c1, c2, c3 = st.columns(3)
+    style = c1.text_input("스타일 (Style)")
+    qty = c2.number_input("수량 (Q'ty)", min_value=0, step=100)
+    del_date = c3.date_input("납기일", datetime.now())
+
+    c4, c5, c6, c7 = st.columns([1.5, 1, 1.5, 1])
+    country = c4.selectbox("국가 선택", list(st.session_state.factory_info.keys()))
+    prod_type = c5.selectbox("생산 구분", ["Main", "Outsourced"])
+    detail_name = c6.text_input("상세 공장명", "공장 이름 입력")
+    lines = c7.number_input("필요 라인", min_value=1, value=1)
 
     submitted = st.form_submit_button("오더 등록 (Add Order)", use_container_width=True)
 
@@ -140,25 +167,10 @@ with st.form("order_form"):
                 "상세공장명": detail_name, "사용라인": lines
             }
             st.session_state.orders.append(new_order)
-            st.success(f"{buyer} 오더가 등록되었습니다.")
+            st.success(f"'{buyer}' 오더가 성공적으로 등록되었습니다.")
             st.rerun()
 
-# --- 7. 외부 링크 (Google / Gemini) ---
-# 웹 환경에서는 webbrowser 모듈 대신 링크 버튼을 사용해야 함
-if buyer:
-    st.markdown("##### 🔗 기업 정보 조회")
-    gc1, gc2 = st.columns(2)
-    
-    # 구글 링크 생성
-    google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
-    gc1.link_button(f"🔍 Google: {buyer} 조회", google_url, use_container_width=True)
-    
-    # Gemini 링크 (단순 이동)
-    gemini_url = "https://gemini.google.com/app"
-    gc2.link_button("✨ Gemini 열기", gemini_url, use_container_width=True)
-    st.caption("※ Gemini는 링크 클릭 후 '바이어 이름 + 실적/신용도 알려줘'라고 직접 입력하세요.")
-
-# --- 8. 리스트 및 엑셀 다운로드 ---
+# --- 7. 리스트 및 엑셀 다운로드 ---
 st.markdown("---")
 c_list, c_down = st.columns([4, 1])
 c_list.subheader("📋 오더 리스트")
@@ -167,7 +179,6 @@ if st.session_state.orders:
     df = pd.DataFrame(st.session_state.orders)
     st.dataframe(df, use_container_width=True)
     
-    # 엑셀 다운로드 로직 (메모리 내 생성)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Sheet1')
