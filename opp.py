@@ -69,8 +69,9 @@ with st.sidebar:
             else:
                 st.info("수정 이력이 없습니다.")
 
-# --- 4. 메인 타이틀 ---
-st.markdown("<h1 style='text-align: center;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
+# --- 4. 메인 타이틀 (수정됨) ---
+# font-size: 24px (모바일에 맞춤), white-space: nowrap (줄바꿈 금지)
+st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- 5. 대시보드 (가동 현황) ---
@@ -89,94 +90,11 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
         with st.container(border=True):
             st.markdown(f"**{factory}**")
             
-            # 본공장 상태 [수정됨: 색상 로직 개선]
+            # 본공장 상태
             m_used = usage_data[factory]["Main"]
             m_total = info['Main']
             
             if m_used >= m_total and m_total > 0:
-                # 꽉 찼으면 빨간색
                 st.markdown(f"본공장: :red[{m_used} / {m_total}]")
             else:
-                # 여유 있으면 기본색 (숫자 그대로 표시)
-                st.markdown(f"본공장: {m_used} / {m_total}")
-            
-            # 외주공장 상태 [수정됨: 색상 로직 개선]
-            o_used = usage_data[factory]["Outsourced"]
-            o_total = info['Outsourced']
-            
-            if o_used >= o_total and o_total > 0:
-                st.markdown(f"외주공장: :red[{o_used} / {o_total}]")
-            else:
-                st.markdown(f"외주공장: {o_used} / {o_total}")
-
-st.markdown("---")
-
-# --- 6. 생산 오더 입력 ---
-st.subheader("📝 생산 오더 입력")
-
-col_buyer, col_link1, col_link2 = st.columns([2, 1, 1])
-
-with col_buyer:
-    buyer = st.text_input("바이어 (Buyer)", placeholder="기업명을 입력하세요")
-
-with col_link1:
-    st.write("") 
-    st.write("") 
-    if buyer:
-        google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
-        st.link_button("기업 신용도(구글)", google_url, use_container_width=True)
-    else:
-        st.button("기업 신용도(구글)", disabled=True, use_container_width=True)
-
-with col_link2:
-    st.write("")
-    st.write("")
-    if buyer:
-        gemini_url = "https://gemini.google.com/app"
-        st.link_button("기업 신용도(gemini)", gemini_url, use_container_width=True)
-    else:
-        st.button("기업 신용도(gemini)", disabled=True, use_container_width=True)
-
-if buyer:
-    st.caption(f"Tip: Gemini 버튼 클릭 후 입력창에 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
-
-with st.form("order_form"):
-    c1, c2, c3 = st.columns(3)
-    style = c1.text_input("스타일 (Style)")
-    qty = c2.number_input("수량 (Q'ty)", min_value=0, step=100)
-    del_date = c3.date_input("납기일", datetime.now())
-
-    c4, c5, c6, c7 = st.columns([1.5, 1, 1.5, 1])
-    country = c4.selectbox("국가 선택", list(st.session_state.factory_info.keys()))
-    prod_type = c5.selectbox("생산 구분", ["Main", "Outsourced"])
-    detail_name = c6.text_input("상세 공장명", "공장 이름 입력")
-    lines = c7.number_input("필요 라인", min_value=1, value=1)
-
-    submitted = st.form_submit_button("오더 등록 (Add Order)", use_container_width=True)
-
-    if submitted:
-        if not buyer or not style or qty == 0:
-            st.error("바이어, 스타일, 수량을 정확히 입력해주세요.")
-        else:
-            current_u = usage_data[country][prod_type]
-            limit = st.session_state.factory_info[country][prod_type]
-            
-            if current_u + lines > limit:
-                st.warning(f"⚠️ 용량 초과 경고! (잔여: {limit - current_u} / 필요: {lines}) 하지만 등록은 진행됩니다.")
-            
-            new_order = {
-                "바이어": buyer, "스타일": style, "수량": qty,
-                "납기일": str(del_date), "국가": country, "생산구분": prod_type,
-                "상세공장명": detail_name, "사용라인": lines
-            }
-            st.session_state.orders.append(new_order)
-            st.success(f"'{buyer}' 오더가 성공적으로 등록되었습니다.")
-            st.rerun()
-
-# --- 7. 리스트 및 엑셀 다운로드 ---
-st.markdown("---")
-c_list, c_down = st.columns([4, 1])
-c_list.subheader("📋 오더 리스트")
-
-if st.session_state.orders:
-    df = pd.DataFrame
+                st.markdown(f"본공장: {m_used} / {
