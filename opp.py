@@ -69,12 +69,11 @@ with st.sidebar:
             else:
                 st.info("수정 이력이 없습니다.")
 
-# --- 4. 메인 타이틀 (수정됨) ---
-# font-size: 24px (모바일에 맞춤), white-space: nowrap (줄바꿈 금지)
+# --- 4. 메인 타이틀 (모바일 줄바꿈 방지 적용) ---
 st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- 5. 대시보드 (가동 현황) ---
+# --- 5. 대시보드 (가동 현황 - 색상 로직 수정됨) ---
 st.subheader("🏭 국가별 공장 가동 현황")
 
 # 현재 사용량 계산
@@ -90,11 +89,41 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
         with st.container(border=True):
             st.markdown(f"**{factory}**")
             
-            # 본공장 상태
+            # 본공장 상태 (에러 났던 부분 수정 완료)
             m_used = usage_data[factory]["Main"]
             m_total = info['Main']
             
             if m_used >= m_total and m_total > 0:
+                # 꽉 찼을 때는 빨간색
                 st.markdown(f"본공장: :red[{m_used} / {m_total}]")
             else:
-                st.markdown(f"본공장: {m_used} / {
+                # 평소에는 기본색 (black이라고 쓰면 안됨)
+                st.markdown(f"본공장: {m_used} / {m_total}")
+            
+            # 외주공장 상태
+            o_used = usage_data[factory]["Outsourced"]
+            o_total = info['Outsourced']
+            
+            if o_used >= o_total and o_total > 0:
+                st.markdown(f"외주공장: :red[{o_used} / {o_total}]")
+            else:
+                st.markdown(f"외주공장: {o_used} / {o_total}")
+
+st.markdown("---")
+
+# --- 6. 생산 오더 입력 ---
+st.subheader("📝 생산 오더 입력")
+
+col_buyer, col_link1, col_link2 = st.columns([2, 1, 1])
+
+with col_buyer:
+    buyer = st.text_input("바이어 (Buyer)", placeholder="기업명을 입력하세요")
+
+with col_link1:
+    st.write("") 
+    st.write("") 
+    if buyer:
+        google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
+        st.link_button("기업 신용도(구글)", google_url, use_container_width=True)
+    else:
+        st
