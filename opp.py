@@ -81,7 +81,6 @@ with st.sidebar:
         values = base + np.random.randn(30).cumsum() * (volatility * 0.1)
         return pd.DataFrame({"Rate": values}, index=dates), values[-1], values[-1] - values[-2]
 
-    # 대한민국 원화(KRW) 최상단 배치
     with st.expander("🇰🇷 대한민국 (KRW)", expanded=True):
         df_krw, cur_krw, del_krw = get_dummy_exchange_data("KRW")
         st.metric(label="USD to KRW", value=f"{cur_krw:,.2f}", delta=f"{del_krw:,.2f}")
@@ -135,7 +134,7 @@ st.markdown("---")
 # --- 6. 생산 오더 입력 ---
 st.subheader("📝 생산 오더 입력")
 
-# 6-1. 바이어 및 정보 조회 링크 (4개 버튼 배치)
+# 6-1. 바이어 및 기업정보 링크
 col_buyer, col_link1, col_link2, col_link3, col_link4 = st.columns([2, 1, 1, 1, 1], vertical_alignment="bottom")
 
 with col_buyer:
@@ -159,7 +158,7 @@ with col_link2:
 
 # 버튼 3: Oritain (TBD)
 with col_link3:
-    oritain_url = "https://oritain.com" # 임시 링크 (홈페이지)
+    oritain_url = "https://oritain.com"
     st.link_button("Oritain(TBD)", oritain_url, use_container_width=True)
 
 # 버튼 4: Altana 플랫폼
@@ -170,35 +169,43 @@ with col_link4:
 if buyer:
     st.caption(f"Tip: Gemini 버튼 클릭 후 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
 
-# 6-2. 오더 상세 입력 폼
+# 6-2. 오더 상세 입력 폼 (원가 포함)
 with st.form("order_form"):
+    # [1] 스타일 기준 정보
     st.markdown("##### 👕 스타일 기준 정보 입력")
-    
-    # [7분할 컬럼]
     s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
-    
-    with s1:
-        s_name = st.text_input("1.오더명", placeholder="ex) O-123")
-    with s2:
-        s_year = st.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
-    with s3:
-        s_season = st.selectbox("3.시즌", ["C1", "C2", "C3", "C4"])
-    with s4:
-        s_fabric = st.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
-    with s5:
-        s_cat = st.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
-    with s6:
-        s_prod = st.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
-    with s7:
-        s_dest = st.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
+    with s1: s_name = st.text_input("1.오더명", placeholder="ex) O-123")
+    with s2: s_year = st.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
+    with s3: s_season = st.selectbox("3.시즌", ["C1", "C2", "C3", "C4"])
+    with s4: s_fabric = st.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
+    with s5: s_cat = st.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
+    with s6: s_prod = st.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
+    with s7: s_dest = st.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
 
     st.markdown("---")
     
-    # [수량, 납기일, 배정 정보]
+    # [2] 원가 등록 (NEW)
+    st.markdown("##### 💰 예상 원가 등록 (Unit: USD)")
+    cost1, cost2, cost3, cost4 = st.columns(4)
+    with cost1: c_yarn = st.number_input("1.원사 (Yarn)", min_value=0.0, format="%.2f")
+    with cost2: c_fabric = st.number_input("2.원단 (Fabric)", min_value=0.0, format="%.2f")
+    with cost3: c_proc = st.number_input("3.원단가공 (Processing)", min_value=0.0, format="%.2f")
+    with cost4: c_sew = st.number_input("4.봉제 (Sewing)", min_value=0.0, format="%.2f")
+    
+    cost5, cost6, cost7, cost_empty = st.columns(4)
+    with cost5: c_epw = st.number_input("5.EPW (Washing)", min_value=0.0, format="%.2f")
+    with cost6: c_trans = st.number_input("6.운반비 (Transport)", min_value=0.0, format="%.2f")
+    with cost7: 
+        c_over = st.number_input("7.원가성 배부비용", min_value=0.0, format="%.2f", help="공장관리자, 감가상각비, 수도광열비 등")
+    with cost_empty:
+        st.empty() # 빈 공간
+
+    st.markdown("---")
+
+    # [3] 수량 및 배정 정보
     c1, c2, c3, c4 = st.columns(4)
     qty = c1.number_input("수량 (Q'ty)", min_value=0, step=100)
     del_date = c2.date_input("납기일", datetime.now())
-    
     country = c3.selectbox("🏭 배정 공장 (Capa 확인용)", list(st.session_state.factory_info.keys()))
     prod_type = c4.selectbox("생산 구분", ["Main", "Outsourced"])
     
@@ -212,10 +219,11 @@ with st.form("order_form"):
         if not buyer or not s_name or qty == 0:
             st.error("바이어, 오더명, 수량은 필수 입력 항목입니다.")
         else:
-            # 스타일 코드 자동 생성
             full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
             
-            # Capa Check
+            # 원가 합계 계산
+            total_cost = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
+
             current_u = usage_data[country][prod_type]
             limit = st.session_state.factory_info[country][prod_type]
             
@@ -230,31 +238,12 @@ with st.form("order_form"):
                 "국가": country, 
                 "생산구분": prod_type,
                 "상세공장명": detail_name, 
-                "사용라인": lines
+                "사용라인": lines,
+                "원가합계($)": round(total_cost, 2), # 원가 합계 저장
+                "원사": c_yarn, "원단": c_fabric, "봉제": c_sew # 주요 원가 정보도 저장
             }
             st.session_state.orders.append(new_order)
-            st.success(f"오더 등록 완료! (Style: {full_style_code})")
+            st.success(f"오더 등록 완료! (Style: {full_style_code}, Cost: ${total_cost:.2f})")
             st.rerun()
 
 # --- 7. 리스트 및 엑셀 다운로드 ---
-st.markdown("---")
-c_list, c_down = st.columns([4, 1])
-c_list.subheader("📋 오더 리스트")
-
-if st.session_state.orders:
-    df = pd.DataFrame(st.session_state.orders)
-    st.dataframe(df, use_container_width=True)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
-    excel_data = output.getvalue()
-    
-    c_down.download_button(
-        label="📥 엑셀로 저장하기",
-        data=excel_data,
-        file_name="production_schedule_web.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-else:
-    st.info("등록된 오더가 없습니다.")
