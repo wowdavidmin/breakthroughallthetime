@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import io
 
 # --- 1. 페이지 설정 ---
@@ -26,7 +26,6 @@ if 'history_log' not in st.session_state:
 
 # --- 3. 사이드바 (관리자 & 환율 정보) ---
 with st.sidebar:
-    # [섹션 1] 관리자 설정
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
@@ -67,47 +66,35 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # [섹션 2] 환율 정보 대시보드
+    # [섹션 2] 환율 정보 대시보드 (KRW 포함)
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
-    # 환율 데이터 생성 함수 (KRW 추가됨)
     def get_dummy_exchange_data(currency_code):
         dates = pd.date_range(end=datetime.now(), periods=30)
         base_rates = {
-            "KRW": 1430, # 원화 환율 기준값
-            "VND": 25400, "IDR": 16200, "MMK": 2100, 
+            "KRW": 1430, "VND": 25400, "IDR": 16200, "MMK": 2100, 
             "GTQ": 7.8, "NIO": 36.8, "HTG": 132.5
         }
         base = base_rates.get(currency_code, 1000)
         volatility = base * 0.02 
         values = base + np.random.randn(30).cumsum() * (volatility * 0.1)
-        
         return pd.DataFrame({"Rate": values}, index=dates), values[-1], values[-1] - values[-2]
 
-    # [NEW] 대한민국 원화(KRW) 최상단 배치 (기본 펼침 상태)
     with st.expander("🇰🇷 대한민국 (KRW)", expanded=True):
         df_krw, cur_krw, del_krw = get_dummy_exchange_data("KRW")
         st.metric(label="USD to KRW", value=f"{cur_krw:,.2f}", delta=f"{del_krw:,.2f}")
         st.line_chart(df_krw, height=100)
         st.link_button("🔍 Google 환율 (KRW)", "https://www.google.com/search?q=USD+to+KRW", use_container_width=True)
 
-    st.markdown("---") # 구분선
+    st.markdown("---")
 
-    # 나머지 생산 국가별 환율 정보
     for factory, info in st.session_state.factory_info.items():
         currency = info.get("Currency", "USD")
-        
         with st.expander(f"{factory} - {currency}", expanded=False):
             df_rate, current_rate, delta = get_dummy_exchange_data(currency)
-            
-            st.metric(
-                label=f"USD to {currency}",
-                value=f"{current_rate:,.2f}",
-                delta=f"{delta:,.2f}"
-            )
+            st.metric(label=f"USD to {currency}", value=f"{current_rate:,.2f}", delta=f"{delta:,.2f}")
             st.line_chart(df_rate, height=100)
-            
             url = f"https://www.google.com/search?q=USD+to+{currency}+exchange+rate"
             st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
@@ -128,7 +115,6 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
     with cols[idx % 3]:
         with st.container(border=True):
             st.markdown(f"**{factory}**")
-            
             m_used = usage_data[factory]["Main"]
             m_total = info['Main']
             if m_used >= m_total and m_total > 0:
@@ -145,21 +131,19 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
 
 st.markdown("---")
 
-# --- 6. 생산 오더 입력 ---
+# --- 6. 생산 오더 입력 (UI 개선) ---
 st.subheader("📝 생산 오더 입력")
 
+# 6-1. 바이어 및 기업정보 (외부 폼)
 col_buyer, col_link1, col_link2 = st.columns([2, 1, 1], vertical_alignment="bottom")
-
 with col_buyer:
     buyer = st.text_input("바이어 (Buyer)", placeholder="기업명을 입력하세요")
-
 with col_link1:
     if buyer:
         google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
         st.link_button("기업 신용도(구글)", google_url, use_container_width=True)
     else:
         st.button("기업 신용도(구글)", disabled=True, use_container_width=True)
-
 with col_link2:
     if buyer:
         gemini_url = "https://gemini.google.com/app"
@@ -168,39 +152,70 @@ with col_link2:
         st.button("기업 신용도(gemini)", disabled=True, use_container_width=True)
 
 if buyer:
-    st.caption(f"Tip: Gemini 버튼 클릭 후 입력창에 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
+    st.caption(f"Tip: Gemini 버튼 클릭 후 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
 
+# 6-2. 오더 상세 입력 폼
 with st.form("order_form"):
-    c1, c2, c3 = st.columns(3)
-    style = c1.text_input("스타일 (Style)")
-    qty = c2.number_input("수량 (Q'ty)", min_value=0, step=100)
-    del_date = c3.date_input("납기일", datetime.now())
+    st.markdown("##### 👕 스타일 기준 정보 입력")
+    # [스타일 상세 입력 6분할]
+    s1, s2, s3, s4, s5, s6 = st.columns(6)
+    
+    with s1:
+        s_name = st.text_input("1.오더명", placeholder="ex) O-123")
+    with s2:
+        s_year = st.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
+    with s3:
+        s_fabric = st.selectbox("3.복종", ["Woven", "Knit", "Synthetic", "Other"])
+    with s4:
+        s_cat = st.selectbox("4.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
+    with s5:
+        # 생산국가는 팩토리 정보의 키값에서 약어 추출 또는 주요 국가 목록
+        s_prod = st.selectbox("5.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
+    with s6:
+        s_dest = st.selectbox("6.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
 
-    c4, c5, c6, c7 = st.columns([1.5, 1, 1.5, 1])
-    country = c4.selectbox("국가 선택", list(st.session_state.factory_info.keys()))
-    prod_type = c5.selectbox("생산 구분", ["Main", "Outsourced"])
-    detail_name = c6.text_input("상세 공장명", "공장 이름 입력")
-    lines = c7.number_input("필요 라인", min_value=1, value=1)
+    st.markdown("---")
+    
+    # [수량, 납기일, 배정 정보]
+    c1, c2, c3, c4 = st.columns(4)
+    qty = c1.number_input("수량 (Q'ty)", min_value=0, step=100)
+    del_date = c2.date_input("납기일", datetime.now())
+    
+    country = c3.selectbox("🏭 배정 공장 (Capa 확인용)", list(st.session_state.factory_info.keys()))
+    prod_type = c4.selectbox("생산 구분", ["Main", "Outsourced"])
+    
+    c5, c6 = st.columns([3, 1])
+    detail_name = c5.text_input("상세 공장명 (라인 실배정)", placeholder="실제 생산할 공장/라인 이름 입력")
+    lines = c6.number_input("필요 라인 수", min_value=1, value=1)
 
     submitted = st.form_submit_button("오더 등록 (Add Order)", use_container_width=True)
 
     if submitted:
-        if not buyer or not style or qty == 0:
-            st.error("바이어, 스타일, 수량을 정확히 입력해주세요.")
+        if not buyer or not s_name or qty == 0:
+            st.error("바이어, 오더명, 수량은 필수 입력 항목입니다.")
         else:
+            # 스타일 코드 자동 생성 (구분자 '_')
+            full_style_code = f"{s_name}_{s_year}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
+            
+            # Capa Check
             current_u = usage_data[country][prod_type]
             limit = st.session_state.factory_info[country][prod_type]
             
             if current_u + lines > limit:
-                st.warning(f"⚠️ 용량 초과 경고! (잔여: {limit - current_u} / 필요: {lines}) 하지만 등록은 진행됩니다.")
+                st.warning(f"⚠️ 용량 초과 경고! ({country}-{prod_type} 잔여: {limit - current_u})")
             
             new_order = {
-                "바이어": buyer, "스타일": style, "수량": qty,
-                "납기일": str(del_date), "국가": country, "생산구분": prod_type,
-                "상세공장명": detail_name, "사용라인": lines
+                "바이어": buyer, 
+                "스타일": full_style_code, # 조합된 스타일 코드 저장
+                "수량": qty,
+                "납기일": str(del_date), 
+                "국가": country, 
+                "생산구분": prod_type,
+                "상세공장명": detail_name, 
+                "사용라인": lines
             }
             st.session_state.orders.append(new_order)
-            st.success(f"'{buyer}' 오더가 성공적으로 등록되었습니다.")
+            st.success(f"오더 등록 완료! (Style: {full_style_code})")
             st.rerun()
 
 # --- 7. 리스트 및 엑셀 다운로드 ---
