@@ -66,7 +66,7 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # [섹션 2] 환율 정보 대시보드 (KRW 포함)
+    # [섹션 2] 환율 정보 대시보드
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
@@ -81,6 +81,7 @@ with st.sidebar:
         values = base + np.random.randn(30).cumsum() * (volatility * 0.1)
         return pd.DataFrame({"Rate": values}, index=dates), values[-1], values[-1] - values[-2]
 
+    # 대한민국 원화(KRW) 최상단 배치
     with st.expander("🇰🇷 대한민국 (KRW)", expanded=True):
         df_krw, cur_krw, del_krw = get_dummy_exchange_data("KRW")
         st.metric(label="USD to KRW", value=f"{cur_krw:,.2f}", delta=f"{del_krw:,.2f}")
@@ -131,25 +132,40 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
 
 st.markdown("---")
 
-# --- 6. 생산 오더 입력 (UI 개선) ---
+# --- 6. 생산 오더 입력 ---
 st.subheader("📝 생산 오더 입력")
 
-# 6-1. 바이어 및 기업정보 (외부 폼)
-col_buyer, col_link1, col_link2 = st.columns([2, 1, 1], vertical_alignment="bottom")
+# 6-1. 바이어 및 정보 조회 링크 (4개 버튼 배치)
+col_buyer, col_link1, col_link2, col_link3, col_link4 = st.columns([2, 1, 1, 1, 1], vertical_alignment="bottom")
+
 with col_buyer:
     buyer = st.text_input("바이어 (Buyer)", placeholder="기업명을 입력하세요")
+
+# 버튼 1: 구글 신용도
 with col_link1:
     if buyer:
         google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
-        st.link_button("기업 신용도(구글)", google_url, use_container_width=True)
+        st.link_button("신용도(구글)", google_url, use_container_width=True)
     else:
-        st.button("기업 신용도(구글)", disabled=True, use_container_width=True)
+        st.button("신용도(구글)", disabled=True, use_container_width=True)
+
+# 버튼 2: Gemini 신용도
 with col_link2:
     if buyer:
         gemini_url = "https://gemini.google.com/app"
-        st.link_button("기업 신용도(gemini)", gemini_url, use_container_width=True)
+        st.link_button("신용도(Gemini)", gemini_url, use_container_width=True)
     else:
-        st.button("기업 신용도(gemini)", disabled=True, use_container_width=True)
+        st.button("신용도(Gemini)", disabled=True, use_container_width=True)
+
+# 버튼 3: Oritain (TBD)
+with col_link3:
+    oritain_url = "https://oritain.com" # 임시 링크 (홈페이지)
+    st.link_button("Oritain(TBD)", oritain_url, use_container_width=True)
+
+# 버튼 4: Altana 플랫폼
+with col_link4:
+    altana_url = "https://www.altana.ai"
+    st.link_button("Altana 플랫폼", altana_url, use_container_width=True)
 
 if buyer:
     st.caption(f"Tip: Gemini 버튼 클릭 후 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
@@ -157,22 +173,24 @@ if buyer:
 # 6-2. 오더 상세 입력 폼
 with st.form("order_form"):
     st.markdown("##### 👕 스타일 기준 정보 입력")
-    # [스타일 상세 입력 6분할]
-    s1, s2, s3, s4, s5, s6 = st.columns(6)
+    
+    # [7분할 컬럼]
+    s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
     
     with s1:
         s_name = st.text_input("1.오더명", placeholder="ex) O-123")
     with s2:
         s_year = st.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
     with s3:
-        s_fabric = st.selectbox("3.복종", ["Woven", "Knit", "Synthetic", "Other"])
+        s_season = st.selectbox("3.시즌", ["C1", "C2", "C3", "C4"])
     with s4:
-        s_cat = st.selectbox("4.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
+        s_fabric = st.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
     with s5:
-        # 생산국가는 팩토리 정보의 키값에서 약어 추출 또는 주요 국가 목록
-        s_prod = st.selectbox("5.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
+        s_cat = st.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
     with s6:
-        s_dest = st.selectbox("6.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
+        s_prod = st.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
+    with s7:
+        s_dest = st.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
 
     st.markdown("---")
     
@@ -194,8 +212,8 @@ with st.form("order_form"):
         if not buyer or not s_name or qty == 0:
             st.error("바이어, 오더명, 수량은 필수 입력 항목입니다.")
         else:
-            # 스타일 코드 자동 생성 (구분자 '_')
-            full_style_code = f"{s_name}_{s_year}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
+            # 스타일 코드 자동 생성
+            full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
             
             # Capa Check
             current_u = usage_data[country][prod_type]
@@ -206,7 +224,7 @@ with st.form("order_form"):
             
             new_order = {
                 "바이어": buyer, 
-                "스타일": full_style_code, # 조합된 스타일 코드 저장
+                "스타일": full_style_code, 
                 "수량": qty,
                 "납기일": str(del_date), 
                 "국가": country, 
