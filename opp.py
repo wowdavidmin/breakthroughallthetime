@@ -19,16 +19,16 @@ if 'factory_info' not in st.session_state:
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
 
-# [기능 추가] 10년치 과거 데이터 자동 생성 (분석 시각화용)
+# 10년치 과거 데이터 자동 생성
 def generate_mock_history():
     mock_data = []
-    years = range(2016, 2026) # 10년치
+    years = range(2016, 2026) 
     buyers = ["Target", "Walmart", "Zara", "Gap", "Uniqlo"]
     fabrics = ["Woven", "Knit", "Synthetic", "Other"]
     categories = ["Ladies", "Men", "Kids", "Toddler"]
     destinations = ["USA", "Europe", "Korea", "Japan"]
     
-    for _ in range(200): # 200개의 과거 데이터 생성
+    for _ in range(200): 
         yr = str(random.choice(years))
         fab = random.choice(fabrics)
         cat = random.choice(categories)
@@ -37,9 +37,8 @@ def generate_mock_history():
         qty = random.randint(1000, 50000)
         price = random.uniform(5.0, 25.0)
         
-        # 수익성 랜덤 로직
         revenue = qty * price
-        cost_ratio = random.uniform(0.7, 0.9) # 원가율 70~90%
+        cost_ratio = random.uniform(0.7, 0.9) 
         profit = revenue * (1 - cost_ratio)
         
         mock_data.append({
@@ -57,7 +56,6 @@ def generate_mock_history():
     return mock_data
 
 if 'orders' not in st.session_state:
-    # 초기 실행 시 시뮬레이션 데이터 로드
     st.session_state.orders = generate_mock_history()
 
 if 'history_log' not in st.session_state:
@@ -146,7 +144,8 @@ st.subheader("🏭 국가별 공장 가동 현황")
 
 usage_data = {f: {"Main": 0, "Outsourced": 0} for f in st.session_state.factory_info}
 for item in st.session_state.orders:
-    if item["국가"] in usage_data and str(item.get('연도')) == str(datetime.now().year): # 현재 연도 기준 가동률
+    # 현재 연도(시스템 시간 기준) 데이터만 가동률에 반영
+    if item["국가"] in usage_data and str(item.get('연도')) == str(datetime.now().year):
         usage_data[item["국가"]][item["생산구분"]] += int(item.get("사용라인", 0))
 
 cols = st.columns(3)
@@ -279,7 +278,6 @@ st.write("")
 
 btn_col1, btn_col2 = st.columns([1, 1])
 
-# [중요] 스타일 코드 대신 개별 데이터로 저장하기 위해 로직 변경
 current_u = usage_data[country][prod_type]
 limit = st.session_state.factory_info[country][prod_type]
 is_capa_full = (current_u + lines > limit)
@@ -289,7 +287,7 @@ def save_order(status):
     full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
     new_order = {
         "바이어": buyer, 
-        "스타일": full_style_code, # 화면 표시용
+        "스타일": full_style_code, 
         "오더명": s_name, "연도": s_year, "시즌": s_season, 
         "복종": s_fabric, "카테고리": s_cat, "생산국가": s_prod, "수출국가": s_dest,
         "수량": qty, "단가": unit_price,
@@ -327,7 +325,6 @@ c_list.subheader("📋 오더 리스트")
 
 if st.session_state.orders:
     df = pd.DataFrame(st.session_state.orders)
-    # 표시할 컬럼 정의
     cols_order = ["상태", "연도", "바이어", "스타일", "수량", "매출($)", "영업이익($)", "이익률(%)", "국가", "납기일"]
     display_cols = [c for c in cols_order if c in df.columns]
     st.dataframe(df[display_cols], use_container_width=True)
@@ -346,9 +343,9 @@ if st.session_state.orders:
 else:
     st.info("등록된 오더가 없습니다.")
 
-# --- [NEW] 8. 10년치 고급 분석 대시보드 ---
+# --- [MODIFIED] 8. 고급 분석 대시보드 ---
 st.markdown("---")
-st.subheader("📈 10년치 오더 분석 및 시각화 (Analytics)")
+st.subheader("📈 오더 분석 및 시각화(최대 10년치)")
 
 if st.session_state.orders:
     df_anal = pd.DataFrame(st.session_state.orders)
@@ -358,15 +355,14 @@ if st.session_state.orders:
     criteria = anal_col1.selectbox("📊 분석 기준 선택", ["바이어", "복종", "카테고리", "생산국가", "수출국가", "시즌"])
     metric = anal_col2.selectbox("📈 시각화 지표", ["매출($)", "영업이익($)", "수량"])
     
-    # 8-2. 데이터 가공 (Pivot)
-    # 연도별, 기준별로 데이터를 합산(sum)합니다.
+    # 8-2. 데이터 가공
     try:
         pivot_df = df_anal.pivot_table(index="연도", columns=criteria, values=metric, aggfunc="sum", fill_value=0)
         
-        # 8-3. 꺾은선 그래프 시각화
+        # 8-3. 꺾은선 그래프
         st.line_chart(pivot_df)
         
-        # 8-4. 분석 데이터 엑셀 다운로드
+        # 8-4. 엑셀 다운로드
         st.markdown("##### 📄 분석 데이터 상세 (Table)")
         st.dataframe(pivot_df.style.format("{:,.0f}"), use_container_width=True)
         
@@ -376,15 +372,14 @@ if st.session_state.orders:
         excel_anal_data = output_anal.getvalue()
         
         anal_col3.download_button(
-            label=f"📥 '{criteria}'별 10년치 분석 데이터 엑셀 저장",
+            label=f"📥 '{criteria}'별 분석 데이터 엑셀 저장",
             data=excel_anal_data,
-            file_name=f"10year_trend_{criteria}.xlsx",
+            file_name=f"trend_analysis_{criteria}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
         
     except Exception as e:
         st.error(f"데이터 분석 중 오류가 발생했습니다: {e}")
-        st.caption("충분한 데이터가 쌓여야 분석이 가능합니다.")
 else:
     st.info("분석할 데이터가 없습니다.")
