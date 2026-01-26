@@ -67,46 +67,49 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # [섹션 2] 환율 정보 대시보드 (New)
+    # [섹션 2] 환율 정보 대시보드
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
-    # 환율 데이터 생성 함수 (실제 API 대신 데모용 데이터 생성)
+    # 환율 데이터 생성 함수 (KRW 추가됨)
     def get_dummy_exchange_data(currency_code):
         dates = pd.date_range(end=datetime.now(), periods=30)
-        # 국가별 대략적인 환율 기준값
         base_rates = {
+            "KRW": 1430, # 원화 환율 기준값
             "VND": 25400, "IDR": 16200, "MMK": 2100, 
             "GTQ": 7.8, "NIO": 36.8, "HTG": 132.5
         }
         base = base_rates.get(currency_code, 1000)
-        # 랜덤 변동폭 생성
         volatility = base * 0.02 
         values = base + np.random.randn(30).cumsum() * (volatility * 0.1)
         
         return pd.DataFrame({"Rate": values}, index=dates), values[-1], values[-1] - values[-2]
 
-    # 각 국가별 환율 카드 생성
+    # [NEW] 대한민국 원화(KRW) 최상단 배치 (기본 펼침 상태)
+    with st.expander("🇰🇷 대한민국 (KRW)", expanded=True):
+        df_krw, cur_krw, del_krw = get_dummy_exchange_data("KRW")
+        st.metric(label="USD to KRW", value=f"{cur_krw:,.2f}", delta=f"{del_krw:,.2f}")
+        st.line_chart(df_krw, height=100)
+        st.link_button("🔍 Google 환율 (KRW)", "https://www.google.com/search?q=USD+to+KRW", use_container_width=True)
+
+    st.markdown("---") # 구분선
+
+    # 나머지 생산 국가별 환율 정보
     for factory, info in st.session_state.factory_info.items():
         currency = info.get("Currency", "USD")
         
-        # 아코디언 형태로 국가별 환율 정보 표시
         with st.expander(f"{factory} - {currency}", expanded=False):
             df_rate, current_rate, delta = get_dummy_exchange_data(currency)
             
-            # 1. 현재 환율 지표
             st.metric(
                 label=f"USD to {currency}",
                 value=f"{current_rate:,.2f}",
                 delta=f"{delta:,.2f}"
             )
-            
-            # 2. 추이 그래프
             st.line_chart(df_rate, height=100)
             
-            # 3. 구글 검색 링크
             url = f"https://www.google.com/search?q=USD+to+{currency}+exchange+rate"
-            st.link_button(f"🔍 Google 환율 확인 ({currency})", url, use_container_width=True)
+            st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
 # --- 4. 메인 타이틀 ---
 st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
