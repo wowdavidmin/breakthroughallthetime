@@ -134,116 +134,89 @@ st.markdown("---")
 # --- 6. 생산 오더 입력 ---
 st.subheader("📝 생산 오더 입력")
 
-# 6-1. 바이어 및 기업정보 링크
+# 6-1. 바이어 및 기업정보
 col_buyer, col_link1, col_link2, col_link3, col_link4 = st.columns([2, 1, 1, 1, 1], vertical_alignment="bottom")
 
 with col_buyer:
     buyer = st.text_input("바이어 (Buyer)", placeholder="기업명을 입력하세요")
-
-# 버튼 1: 구글 신용도
 with col_link1:
     if buyer:
-        google_url = f"https://www.google.com/search?q={buyer}+기업+실적+신용도"
-        st.link_button("신용도(구글)", google_url, use_container_width=True)
+        st.link_button("신용도(구글)", f"https://www.google.com/search?q={buyer}+기업+실적+신용도", use_container_width=True)
     else:
         st.button("신용도(구글)", disabled=True, use_container_width=True)
-
-# 버튼 2: Gemini 신용도
 with col_link2:
     if buyer:
-        gemini_url = "https://gemini.google.com/app"
-        st.link_button("신용도(Gemini)", gemini_url, use_container_width=True)
+        st.link_button("신용도(Gemini)", "https://gemini.google.com/app", use_container_width=True)
     else:
         st.button("신용도(Gemini)", disabled=True, use_container_width=True)
-
-# 버튼 3: Oritain (TBD)
 with col_link3:
-    oritain_url = "https://oritain.com"
-    st.link_button("Oritain(TBD)", oritain_url, use_container_width=True)
-
-# 버튼 4: Altana 플랫폼
+    st.link_button("Oritain(TBD)", "https://oritain.com", use_container_width=True)
 with col_link4:
-    altana_url = "https://www.altana.ai"
-    st.link_button("Altana 플랫폼", altana_url, use_container_width=True)
+    st.link_button("Altana 플랫폼", "https://www.altana.ai", use_container_width=True)
 
 if buyer:
     st.caption(f"Tip: Gemini 버튼 클릭 후 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
 
-# 6-2. 오더 상세 입력 폼 (원가 포함)
-with st.form("order_form"):
-    # [1] 스타일 기준 정보
-    st.markdown("##### 👕 스타일 기준 정보 입력")
-    s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
-    with s1: s_name = st.text_input("1.오더명", placeholder="ex) O-123")
-    with s2: s_year = st.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
-    with s3: s_season = st.selectbox("3.시즌", ["C1", "C2", "C3", "C4"])
-    with s4: s_fabric = st.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
-    with s5: s_cat = st.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
-    with s6: s_prod = st.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
-    with s7: s_dest = st.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
+# --- [입력 폼 시작] ---
+# st.form을 제거하여 실시간 계산이 가능하도록 변경했습니다.
+st.markdown("##### 👕 스타일 기준 정보 입력")
+s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
+s_name = s1.text_input("1.오더명", placeholder="ex) O-123")
+s_year = s2.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
+s_season = s3.selectbox("3.시즌", ["C1", "C2", "C3", "C4"])
+s_fabric = s4.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
+s_cat = s5.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
+s_prod = s6.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
+s_dest = s7.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
 
-    st.markdown("---")
-    
-    # [2] 원가 등록 (NEW)
-    st.markdown("##### 💰 예상 원가 등록 (Unit: USD)")
-    cost1, cost2, cost3, cost4 = st.columns(4)
-    with cost1: c_yarn = st.number_input("1.원사 (Yarn)", min_value=0.0, format="%.2f")
-    with cost2: c_fabric = st.number_input("2.원단 (Fabric)", min_value=0.0, format="%.2f")
-    with cost3: c_proc = st.number_input("3.원단가공 (Processing)", min_value=0.0, format="%.2f")
-    with cost4: c_sew = st.number_input("4.봉제 (Sewing)", min_value=0.0, format="%.2f")
-    
-    cost5, cost6, cost7, cost_empty = st.columns(4)
-    with cost5: c_epw = st.number_input("5.EPW (Washing)", min_value=0.0, format="%.2f")
-    with cost6: c_trans = st.number_input("6.운반비 (Transport)", min_value=0.0, format="%.2f")
-    with cost7: 
-        c_over = st.number_input("7.원가성 배부비용", min_value=0.0, format="%.2f", help="공장관리자, 감가상각비, 수도광열비 등")
-    with cost_empty:
-        st.empty() # 빈 공간
+st.markdown("---")
 
-    st.markdown("---")
+# [수량, 단가, 공장 배정]
+c1, c2, c3, c4 = st.columns(4)
+qty = c1.number_input("수량 (Q'ty)", min_value=0, step=100)
+unit_price = c2.number_input("단가 ($ Unit Price)", min_value=0.0, step=0.1, format="%.2f")
+del_date = c3.date_input("납기일", datetime.now())
+country = c4.selectbox("🏭 배정 공장", list(st.session_state.factory_info.keys()))
 
-    # [3] 수량 및 배정 정보
-    c1, c2, c3, c4 = st.columns(4)
-    qty = c1.number_input("수량 (Q'ty)", min_value=0, step=100)
-    del_date = c2.date_input("납기일", datetime.now())
-    country = c3.selectbox("🏭 배정 공장 (Capa 확인용)", list(st.session_state.factory_info.keys()))
-    prod_type = c4.selectbox("생산 구분", ["Main", "Outsourced"])
-    
-    c5, c6 = st.columns([3, 1])
-    detail_name = c5.text_input("상세 공장명 (라인 실배정)", placeholder="실제 생산할 공장/라인 이름 입력")
-    lines = c6.number_input("필요 라인 수", min_value=1, value=1)
+c5, c6, c7 = st.columns([1, 2, 1])
+prod_type = c5.selectbox("생산 구분", ["Main", "Outsourced"])
+detail_name = c6.text_input("상세 공장명", placeholder="공장/라인 이름 입력")
+lines = c7.number_input("필요 라인", min_value=1, value=1)
 
-    submitted = st.form_submit_button("오더 등록 (Add Order)", use_container_width=True)
+st.markdown("---")
 
-    if submitted:
-        if not buyer or not s_name or qty == 0:
-            st.error("바이어, 오더명, 수량은 필수 입력 항목입니다.")
-        else:
-            full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
-            
-            # 원가 합계 계산
-            total_cost = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
+# [원가 등록 및 수익성 분석] - 위치 이동 및 항목 추가
+st.markdown("##### 💰 예상 원가 등록 (Unit: USD)")
 
-            current_u = usage_data[country][prod_type]
-            limit = st.session_state.factory_info[country][prod_type]
-            
-            if current_u + lines > limit:
-                st.warning(f"⚠️ 용량 초과 경고! ({country}-{prod_type} 잔여: {limit - current_u})")
-            
-            new_order = {
-                "바이어": buyer, 
-                "스타일": full_style_code, 
-                "수량": qty,
-                "납기일": str(del_date), 
-                "국가": country, 
-                "생산구분": prod_type,
-                "상세공장명": detail_name, 
-                "사용라인": lines,
-                "원가합계($)": round(total_cost, 2), # 원가 합계 저장
-                "원사": c_yarn, "원단": c_fabric, "봉제": c_sew # 주요 원가 정보도 저장
-            }
-            st.session_state.orders.append(new_order)
-            st.success(f"오더 등록 완료! (Style: {full_style_code}, Cost: ${total_cost:.2f})")
-            st.rerun()
+# 원가 입력 (7가지 요소)
+cost_c1, cost_c2, cost_c3, cost_c4 = st.columns(4)
+c_yarn = cost_c1.number_input("1.원사 (Yarn)", min_value=0.0, format="%.2f", step=0.1)
+c_fabric = cost_c2.number_input("2.원단 (Fabric)", min_value=0.0, format="%.2f", step=0.1)
+c_proc = cost_c3.number_input("3.원단가공", min_value=0.0, format="%.2f", step=0.1)
+c_sew = cost_c4.number_input("4.봉제 (Sewing)", min_value=0.0, format="%.2f", step=0.1)
 
-# --- 7. 리스트 및 엑셀 다운로드 ---
+cost_c5, cost_c6, cost_c7, cost_c8 = st.columns(4)
+c_epw = cost_c5.number_input("5.EPW (Washing)", min_value=0.0, format="%.2f", step=0.1)
+c_trans = cost_c6.number_input("6.운반비", min_value=0.0, format="%.2f", step=0.1)
+c_over = cost_c7.number_input("7.원가성 배부비용", min_value=0.0, format="%.2f", step=0.1, help="공장관리비, 감가상각 등")
+c_sga = cost_c8.number_input("➕ 추가 판관비", min_value=0.0, format="%.2f", step=0.1, help="본사 관리비 등 영업비용")
+
+# --- 실시간 수익성 계산 로직 ---
+# 1. 예상 매출
+est_revenue = qty * unit_price
+# 2. 제조 원가 합계 (1~7번)
+total_mfg_cost_unit = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
+total_mfg_cost = total_mfg_cost_unit * qty
+# 3. 판관비 총액
+total_sga = c_sga * qty
+# 4. 영업이익
+op_profit = est_revenue - total_mfg_cost - total_sga
+# 5. 이익률
+op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
+
+st.markdown("---")
+
+# [수익성 분석 대시보드]
+st.subheader("📊 영업 수익성 분석 (Profitability)")
+
+col_est, col_act = st.columns(2)
