@@ -220,3 +220,102 @@ st.markdown("---")
 st.subheader("📊 영업 수익성 분석 (Profitability)")
 
 col_est, col_act = st.columns(2)
+
+with col_est:
+    st.info("**[예상 영업수익성] (Pre-shipment)**")
+    st.markdown(f"""
+    - **예상 매출**: :blue[${est_revenue:,.2f}] ({qty:,} pcs × ${unit_price})
+    - **예상 원가**: :red[${total_mfg_cost:,.2f}] (Unit: ${total_mfg_cost_unit:.2f})
+    - **예상 판관비**: :orange[${total_sga:,.2f}]
+    - **예상 영업이익**: **${op_profit:,.2f}** ({op_margin:.1f}%)
+    """)
+
+with col_act:
+    st.success("**[확정 영업수익성] (Post-shipment)**")
+    st.caption("※ 오더 확정 버튼 클릭 시, 현재 입력값이 확정치로 저장됩니다.")
+    st.markdown(f"""
+    - **확정 매출**: :blue[${est_revenue:,.2f}]
+    - **확정 원가**: :red[${total_mfg_cost:,.2f}]
+    - **확정 영업이익**: **${op_profit:,.2f}** ({op_margin:.1f}%)
+    """)
+
+st.write("") # 간격
+
+# [하단 버튼 액션]
+btn_col1, btn_col2 = st.columns([1, 1])
+
+# 스타일 코드 생성
+full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
+
+# Capa Check Logic
+current_u = usage_data[country][prod_type]
+limit = st.session_state.factory_info[country][prod_type]
+is_capa_full = (current_u + lines > limit)
+
+# 버튼 1: 예상 오더 등록
+if btn_col1.button("📝 오더 등록 (Estimated Order)", use_container_width=True):
+    if not buyer or not s_name or qty == 0:
+        st.error("바이어, 오더명, 수량은 필수 입력 항목입니다.")
+    else:
+        if is_capa_full:
+            st.warning(f"⚠️ Capa 초과 상태로 등록됩니다. (잔여: {limit - current_u})")
+        
+        new_order = {
+            "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
+            "납기일": str(del_date), "국가": country, "생산구분": prod_type,
+            "상세공장명": detail_name, "사용라인": lines,
+            "상태": "Estimated", # 상태값 구분
+            "매출($)": round(est_revenue, 2),
+            "영업이익($)": round(op_profit, 2),
+            "이익률(%)": round(op_margin, 1)
+        }
+        st.session_state.orders.append(new_order)
+        st.success(f"예상 오더 등록 완료! (Profit: ${op_profit:,.0f})")
+        st.rerun()
+
+# 버튼 2: 오더 확정
+if btn_col2.button("✅ 오더 확정 (Confirm Order)", type="primary", use_container_width=True):
+    if not buyer or not s_name or qty == 0:
+        st.error("확정할 오더 정보를 정확히 입력해주세요.")
+    else:
+        # 확정 로직: 현재 입력값을 그대로 확정치로 저장
+        new_order = {
+            "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
+            "납기일": str(del_date), "국가": country, "생산구분": prod_type,
+            "상세공장명": detail_name, "사용라인": lines,
+            "상태": "Confirmed", # 상태값 구분
+            "매출($)": round(est_revenue, 2),
+            "영업이익($)": round(op_profit, 2),
+            "이익률(%)": round(op_margin, 1)
+        }
+        st.session_state.orders.append(new_order)
+        st.balloons() # 확정 축하 효과
+        st.success(f"오더가 확정되었습니다! (Confirmed Profit: ${op_profit:,.0f})")
+        st.rerun()
+
+# --- 7. 리스트 및 엑셀 다운로드 ---
+st.markdown("---")
+c_list, c_down = st.columns([4, 1])
+c_list.subheader("📋 오더 리스트")
+
+if st.session_state.orders:
+    df = pd.DataFrame(st.session_state.orders)
+    # 컬럼 순서 보기 좋게 정렬
+    cols_order = ["상태", "바이어", "스타일", "수량", "단가", "매출($)", "영업이익($)", "이익률(%)", "국가", "생산구분", "납기일"]
+    # 없는 컬럼 방지 (기존 데이터 호환)
+    display_cols = [c for c in cols_order if c in df.columns]
+    st.dataframe(df[display_cols], use_container_width=True)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+    excel_data = output.getvalue()
+    
+    c_down.download_button(
+        label="📥 엑셀로 저장하기",
+        data=excel_data,
+        file_name="production_schedule_web.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+else:
+    st.info("등록된 오더가 없습니다.")
