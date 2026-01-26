@@ -157,8 +157,7 @@ with col_link4:
 if buyer:
     st.caption(f"Tip: Gemini 버튼 클릭 후 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
 
-# --- [입력 폼 시작] ---
-# st.form을 제거하여 실시간 계산이 가능하도록 변경했습니다.
+# --- [입력 폼] ---
 st.markdown("##### 👕 스타일 기준 정보 입력")
 s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
 s_name = s1.text_input("1.오더명", placeholder="ex) O-123")
@@ -185,10 +184,10 @@ lines = c7.number_input("필요 라인", min_value=1, value=1)
 
 st.markdown("---")
 
-# [원가 등록 및 수익성 분석] - 위치 이동 및 항목 추가
+# [원가 등록 및 수익성 분석]
 st.markdown("##### 💰 예상 원가 등록 (Unit: USD)")
 
-# 원가 입력 (7가지 요소)
+# 원가 입력
 cost_c1, cost_c2, cost_c3, cost_c4 = st.columns(4)
 c_yarn = cost_c1.number_input("1.원사 (Yarn)", min_value=0.0, format="%.2f", step=0.1)
 c_fabric = cost_c2.number_input("2.원단 (Fabric)", min_value=0.0, format="%.2f", step=0.1)
@@ -196,22 +195,18 @@ c_proc = cost_c3.number_input("3.원단가공", min_value=0.0, format="%.2f", st
 c_sew = cost_c4.number_input("4.봉제 (Sewing)", min_value=0.0, format="%.2f", step=0.1)
 
 cost_c5, cost_c6, cost_c7, cost_c8 = st.columns(4)
-c_epw = cost_c5.number_input("5.EPW (Washing)", min_value=0.0, format="%.2f", step=0.1)
+# [수정된 부분] 괄호 안 텍스트 변경
+c_epw = cost_c5.number_input("5.EPW (Embroidery, Printing, Washing)", min_value=0.0, format="%.2f", step=0.1)
 c_trans = cost_c6.number_input("6.운반비", min_value=0.0, format="%.2f", step=0.1)
 c_over = cost_c7.number_input("7.원가성 배부비용", min_value=0.0, format="%.2f", step=0.1, help="공장관리비, 감가상각 등")
 c_sga = cost_c8.number_input("➕ 추가 판관비", min_value=0.0, format="%.2f", step=0.1, help="본사 관리비 등 영업비용")
 
 # --- 실시간 수익성 계산 로직 ---
-# 1. 예상 매출
 est_revenue = qty * unit_price
-# 2. 제조 원가 합계 (1~7번)
 total_mfg_cost_unit = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
 total_mfg_cost = total_mfg_cost_unit * qty
-# 3. 판관비 총액
 total_sga = c_sga * qty
-# 4. 영업이익
 op_profit = est_revenue - total_mfg_cost - total_sga
-# 5. 이익률
 op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
 
 st.markdown("---")
@@ -239,15 +234,12 @@ with col_act:
     - **확정 영업이익**: **${op_profit:,.2f}** ({op_margin:.1f}%)
     """)
 
-st.write("") # 간격
+st.write("") 
 
 # [하단 버튼 액션]
 btn_col1, btn_col2 = st.columns([1, 1])
 
-# 스타일 코드 생성
 full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
-
-# Capa Check Logic
 current_u = usage_data[country][prod_type]
 limit = st.session_state.factory_info[country][prod_type]
 is_capa_full = (current_u + lines > limit)
@@ -264,7 +256,7 @@ if btn_col1.button("📝 오더 등록 (Estimated Order)", use_container_width=T
             "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
             "납기일": str(del_date), "국가": country, "생산구분": prod_type,
             "상세공장명": detail_name, "사용라인": lines,
-            "상태": "Estimated", # 상태값 구분
+            "상태": "Estimated",
             "매출($)": round(est_revenue, 2),
             "영업이익($)": round(op_profit, 2),
             "이익률(%)": round(op_margin, 1)
@@ -278,18 +270,17 @@ if btn_col2.button("✅ 오더 확정 (Confirm Order)", type="primary", use_cont
     if not buyer or not s_name or qty == 0:
         st.error("확정할 오더 정보를 정확히 입력해주세요.")
     else:
-        # 확정 로직: 현재 입력값을 그대로 확정치로 저장
         new_order = {
             "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
             "납기일": str(del_date), "국가": country, "생산구분": prod_type,
             "상세공장명": detail_name, "사용라인": lines,
-            "상태": "Confirmed", # 상태값 구분
+            "상태": "Confirmed",
             "매출($)": round(est_revenue, 2),
             "영업이익($)": round(op_profit, 2),
             "이익률(%)": round(op_margin, 1)
         }
         st.session_state.orders.append(new_order)
-        st.balloons() # 확정 축하 효과
+        st.balloons()
         st.success(f"오더가 확정되었습니다! (Confirmed Profit: ${op_profit:,.0f})")
         st.rerun()
 
@@ -300,9 +291,7 @@ c_list.subheader("📋 오더 리스트")
 
 if st.session_state.orders:
     df = pd.DataFrame(st.session_state.orders)
-    # 컬럼 순서 보기 좋게 정렬
     cols_order = ["상태", "바이어", "스타일", "수량", "단가", "매출($)", "영업이익($)", "이익률(%)", "국가", "생산구분", "납기일"]
-    # 없는 컬럼 방지 (기존 데이터 호환)
     display_cols = [c for c in cols_order if c in df.columns]
     st.dataframe(df[display_cols], use_container_width=True)
     
