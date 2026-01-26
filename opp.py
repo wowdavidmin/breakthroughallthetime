@@ -129,6 +129,26 @@ for idx, (factory, info) in enumerate(st.session_state.factory_info.items()):
             else:
                 st.markdown(f"외주공장: {o_used} / {o_total}")
 
+# --- [NEW] 5-1. 실시간 CCTV 모니터링 섹션 ---
+st.markdown("---")
+st.subheader("🎥 실시간 공장 CCTV 모니터링 (Live Feed)")
+
+# CCTV 3열 그리드 배치
+cctv_cols = st.columns(3)
+
+# 예시용 더미 비디오 URL (실제 운영 시에는 각 공장의 RTSP/HTTP 주소로 교체 필요)
+# 여기서는 의류 공장 느낌의 무료 샘플 영상을 사용합니다.
+dummy_video_url = "https://www.youtube.com/watch?v=Fj0X7c3_9n4" # 예시: 봉제 공장 영상
+
+for idx, factory in enumerate(st.session_state.factory_info.keys()):
+    with cctv_cols[idx % 3]:
+        with st.container(border=True):
+            # 빨간색 녹화중 아이콘 효과
+            st.markdown(f"**{factory}** &nbsp; :red[● REC]", unsafe_allow_html=True)
+            # 비디오 플레이어 (실제 CCTV 주소가 있다면 그 주소를 넣으면 됩니다)
+            st.video(dummy_video_url)
+            st.caption(f"📍 Location: {factory} Main Line")
+
 st.markdown("---")
 
 # --- 6. 생산 오더 입력 ---
@@ -157,132 +177,114 @@ with col_link4:
 if buyer:
     st.caption(f"Tip: Gemini 버튼 클릭 후 **'{buyer} 실적과 신용도 알려줘'** 라고 질문하세요.")
 
-# --- [입력 폼] ---
-st.markdown("##### 👕 스타일 기준 정보 입력")
-s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
-s_name = s1.text_input("1.오더명", placeholder="ex) O-123")
-s_year = s2.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
-s_season = s3.selectbox("3.시즌", ["C1", "C2", "C3", "C4"])
-s_fabric = s4.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
-s_cat = s5.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
-s_prod = s6.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
-s_dest = s7.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
+# 6-2. 오더 상세 입력 폼
+with st.form("order_form"):
+    st.markdown("##### 👕 스타일 기준 정보 입력")
+    s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
+    with s1: s_name = st.text_input("1.오더명", placeholder="ex) O-123")
+    with s2: s_year = st.selectbox("2.연도", [str(y) for y in range(2025, 2031)])
+    with s3: s_season = st.selectbox("3.시즌", ["C1", "C2", "C3", "C4"])
+    with s4: s_fabric = st.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
+    with s5: s_cat = st.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
+    with s6: s_prod = st.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
+    with s7: s_dest = st.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
 
-st.markdown("---")
+    st.markdown("---")
+    
+    # [원가 등록]
+    st.markdown("##### 💰 예상 원가 등록 (Unit: USD)")
+    cost_c1, cost_c2, cost_c3, cost_c4 = st.columns(4)
+    with cost_c1: c_yarn = st.number_input("1.원사 (Yarn)", min_value=0.0, format="%.2f", step=0.1)
+    with cost_c2: c_fabric = st.number_input("2.원단 (Fabric)", min_value=0.0, format="%.2f", step=0.1)
+    with cost_c3: c_proc = st.number_input("3.원단가공", min_value=0.0, format="%.2f", step=0.1)
+    with cost_c4: c_sew = st.number_input("4.봉제 (Sewing)", min_value=0.0, format="%.2f", step=0.1)
+    
+    cost_c5, cost_c6, cost_c7, cost_c8 = st.columns(4)
+    with cost_c5: c_epw = st.number_input("5.EPW (Embroidery, Printing, Washing)", min_value=0.0, format="%.2f", step=0.1)
+    with cost_c6: c_trans = st.number_input("6.운반비", min_value=0.0, format="%.2f", step=0.1)
+    with cost_c7: c_over = st.number_input("7.원가성 배부비용", min_value=0.0, format="%.2f", step=0.1)
+    with cost_c8: c_sga = st.number_input("➕ 추가 판관비", min_value=0.0, format="%.2f", step=0.1)
 
-# [수량, 단가, 공장 배정]
-c1, c2, c3, c4 = st.columns(4)
-qty = c1.number_input("수량 (Q'ty)", min_value=0, step=100)
-unit_price = c2.number_input("단가 ($ Unit Price)", min_value=0.0, step=0.1, format="%.2f")
-del_date = c3.date_input("납기일", datetime.now())
-country = c4.selectbox("🏭 배정 공장", list(st.session_state.factory_info.keys()))
+    st.markdown("---")
 
-c5, c6, c7 = st.columns([1, 2, 1])
-prod_type = c5.selectbox("생산 구분", ["Main", "Outsourced"])
-detail_name = c6.text_input("상세 공장명", placeholder="공장/라인 이름 입력")
-lines = c7.number_input("필요 라인", min_value=1, value=1)
+    # [수량, 납기일]
+    c1, c2, c3, c4 = st.columns(4)
+    qty = c1.number_input("수량 (Q'ty)", min_value=0, step=100)
+    unit_price = c2.number_input("단가 ($ Unit Price)", min_value=0.0, step=0.1, format="%.2f")
+    del_date = c3.date_input("납기일", datetime.now())
+    country = c4.selectbox("🏭 배정 공장", list(st.session_state.factory_info.keys()))
+    
+    c5, c6, c7 = st.columns([1, 2, 1])
+    prod_type = c5.selectbox("생산 구분", ["Main", "Outsourced"])
+    detail_name = c6.text_input("상세 공장명", placeholder="공장/라인 이름 입력")
+    lines = c7.number_input("필요 라인", min_value=1, value=1)
 
-st.markdown("---")
+    # 실시간 계산
+    est_revenue = qty * unit_price
+    total_mfg_cost_unit = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
+    total_mfg_cost = total_mfg_cost_unit * qty
+    total_sga = c_sga * qty
+    op_profit = est_revenue - total_mfg_cost - total_sga
+    op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
 
-# [원가 등록 및 수익성 분석]
-st.markdown("##### 💰 예상 원가 등록 (Unit: USD)")
+    st.markdown("---")
+    
+    # 수익성 분석
+    st.markdown("##### 📊 영업 수익성 분석")
+    col_est, col_act = st.columns(2)
+    with col_est:
+        st.info("**[예상 영업수익성]**")
+        st.write(f"예상 매출: ${est_revenue:,.2f}")
+        st.write(f"예상 영업이익: ${op_profit:,.2f} ({op_margin:.1f}%)")
+    with col_act:
+        st.success("**[확정 영업수익성]** (확정 시 저장됨)")
+        st.write(f"확정 매출: ${est_revenue:,.2f}")
+        st.write(f"확정 영업이익: ${op_profit:,.2f} ({op_margin:.1f}%)")
+    
+    st.write("")
+    
+    # 버튼 액션
+    btn_col1, btn_col2 = st.columns([1, 1])
+    
+    full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
+    current_u = usage_data[country][prod_type]
+    limit = st.session_state.factory_info[country][prod_type]
+    is_capa_full = (current_u + lines > limit)
 
-# 원가 입력
-cost_c1, cost_c2, cost_c3, cost_c4 = st.columns(4)
-c_yarn = cost_c1.number_input("1.원사 (Yarn)", min_value=0.0, format="%.2f", step=0.1)
-c_fabric = cost_c2.number_input("2.원단 (Fabric)", min_value=0.0, format="%.2f", step=0.1)
-c_proc = cost_c3.number_input("3.원단가공", min_value=0.0, format="%.2f", step=0.1)
-c_sew = cost_c4.number_input("4.봉제 (Sewing)", min_value=0.0, format="%.2f", step=0.1)
+    # Form 안에서는 버튼의 콜백을 처리하기 어려우므로, form_submit_button을 사용해야 함
+    # 하지만 두 개의 버튼을 구분하기 위해 아래와 같이 구현
+    submitted_est = btn_col1.form_submit_button("📝 오더 등록 (Estimated)", use_container_width=True)
+    submitted_conf = btn_col2.form_submit_button("✅ 오더 확정 (Confirmed)", type="primary", use_container_width=True)
 
-cost_c5, cost_c6, cost_c7, cost_c8 = st.columns(4)
-# [수정된 부분] 괄호 안 텍스트 변경
-c_epw = cost_c5.number_input("5.EPW (Embroidery, Printing, Washing)", min_value=0.0, format="%.2f", step=0.1)
-c_trans = cost_c6.number_input("6.운반비", min_value=0.0, format="%.2f", step=0.1)
-c_over = cost_c7.number_input("7.원가성 배부비용", min_value=0.0, format="%.2f", step=0.1, help="공장관리비, 감가상각 등")
-c_sga = cost_c8.number_input("➕ 추가 판관비", min_value=0.0, format="%.2f", step=0.1, help="본사 관리비 등 영업비용")
+    if submitted_est:
+        if not buyer or not s_name or qty == 0:
+            st.error("필수 정보를 입력해주세요.")
+        else:
+            if is_capa_full: st.warning("Capa 초과 상태입니다.")
+            new_order = {
+                "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
+                "납기일": str(del_date), "국가": country, "생산구분": prod_type,
+                "상세공장명": detail_name, "사용라인": lines, "상태": "Estimated",
+                "매출($)": round(est_revenue, 2), "영업이익($)": round(op_profit, 2), "이익률(%)": round(op_margin, 1)
+            }
+            st.session_state.orders.append(new_order)
+            st.success("예상 오더 등록 완료!")
+            st.rerun()
 
-# --- 실시간 수익성 계산 로직 ---
-est_revenue = qty * unit_price
-total_mfg_cost_unit = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
-total_mfg_cost = total_mfg_cost_unit * qty
-total_sga = c_sga * qty
-op_profit = est_revenue - total_mfg_cost - total_sga
-op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
-
-st.markdown("---")
-
-# [수익성 분석 대시보드]
-st.subheader("📊 영업 수익성 분석 (Profitability)")
-
-col_est, col_act = st.columns(2)
-
-with col_est:
-    st.info("**[예상 영업수익성] (Pre-shipment)**")
-    st.markdown(f"""
-    - **예상 매출**: :blue[${est_revenue:,.2f}] ({qty:,} pcs × ${unit_price})
-    - **예상 원가**: :red[${total_mfg_cost:,.2f}] (Unit: ${total_mfg_cost_unit:.2f})
-    - **예상 판관비**: :orange[${total_sga:,.2f}]
-    - **예상 영업이익**: **${op_profit:,.2f}** ({op_margin:.1f}%)
-    """)
-
-with col_act:
-    st.success("**[확정 영업수익성] (Post-shipment)**")
-    st.caption("※ 오더 확정 버튼 클릭 시, 현재 입력값이 확정치로 저장됩니다.")
-    st.markdown(f"""
-    - **확정 매출**: :blue[${est_revenue:,.2f}]
-    - **확정 원가**: :red[${total_mfg_cost:,.2f}]
-    - **확정 영업이익**: **${op_profit:,.2f}** ({op_margin:.1f}%)
-    """)
-
-st.write("") 
-
-# [하단 버튼 액션]
-btn_col1, btn_col2 = st.columns([1, 1])
-
-full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
-current_u = usage_data[country][prod_type]
-limit = st.session_state.factory_info[country][prod_type]
-is_capa_full = (current_u + lines > limit)
-
-# 버튼 1: 예상 오더 등록
-if btn_col1.button("📝 오더 등록 (Estimated Order)", use_container_width=True):
-    if not buyer or not s_name or qty == 0:
-        st.error("바이어, 오더명, 수량은 필수 입력 항목입니다.")
-    else:
-        if is_capa_full:
-            st.warning(f"⚠️ Capa 초과 상태로 등록됩니다. (잔여: {limit - current_u})")
-        
-        new_order = {
-            "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
-            "납기일": str(del_date), "국가": country, "생산구분": prod_type,
-            "상세공장명": detail_name, "사용라인": lines,
-            "상태": "Estimated",
-            "매출($)": round(est_revenue, 2),
-            "영업이익($)": round(op_profit, 2),
-            "이익률(%)": round(op_margin, 1)
-        }
-        st.session_state.orders.append(new_order)
-        st.success(f"예상 오더 등록 완료! (Profit: ${op_profit:,.0f})")
-        st.rerun()
-
-# 버튼 2: 오더 확정
-if btn_col2.button("✅ 오더 확정 (Confirm Order)", type="primary", use_container_width=True):
-    if not buyer or not s_name or qty == 0:
-        st.error("확정할 오더 정보를 정확히 입력해주세요.")
-    else:
-        new_order = {
-            "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
-            "납기일": str(del_date), "국가": country, "생산구분": prod_type,
-            "상세공장명": detail_name, "사용라인": lines,
-            "상태": "Confirmed",
-            "매출($)": round(est_revenue, 2),
-            "영업이익($)": round(op_profit, 2),
-            "이익률(%)": round(op_margin, 1)
-        }
-        st.session_state.orders.append(new_order)
-        st.balloons()
-        st.success(f"오더가 확정되었습니다! (Confirmed Profit: ${op_profit:,.0f})")
-        st.rerun()
+    if submitted_conf:
+        if not buyer or not s_name or qty == 0:
+            st.error("필수 정보를 입력해주세요.")
+        else:
+            new_order = {
+                "바이어": buyer, "스타일": full_style_code, "수량": qty, "단가": unit_price,
+                "납기일": str(del_date), "국가": country, "생산구분": prod_type,
+                "상세공장명": detail_name, "사용라인": lines, "상태": "Confirmed",
+                "매출($)": round(est_revenue, 2), "영업이익($)": round(op_profit, 2), "이익률(%)": round(op_margin, 1)
+            }
+            st.session_state.orders.append(new_order)
+            st.balloons()
+            st.success("오더 확정 완료!")
+            st.rerun()
 
 # --- 7. 리스트 및 엑셀 다운로드 ---
 st.markdown("---")
