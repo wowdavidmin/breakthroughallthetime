@@ -51,7 +51,8 @@ def generate_mock_history():
             "영업이익($)": round(profit, 2),
             "이익률(%)": round((profit/revenue)*100, 1),
             "국가": ctry, "생산구분": random.choice(["Main", "Outsourced"]),
-            "납기일": f"{yr}-06-15", "상태": "Confirmed"
+            "납기일": f"{yr}-06-15", "상태": "Confirmed",
+            "진행상태": "Shipped" # 과거 데이터는 모두 선적 완료로 가정
         })
     return mock_data
 
@@ -232,18 +233,38 @@ lines = c7.number_input("필요 라인", min_value=1, value=1)
 
 st.markdown("---")
 
-st.markdown("##### 💰 예상 원가 등록 (Unit: USD)")
-cost_c1, cost_c2, cost_c3, cost_c4 = st.columns(4)
-c_yarn = cost_c1.number_input("1.원사 (Yarn)", min_value=0.0, format="%.2f", step=0.1)
-c_fabric = cost_c2.number_input("2.원단 (Fabric)", min_value=0.0, format="%.2f", step=0.1)
-c_proc = cost_c3.number_input("3.원단가공", min_value=0.0, format="%.2f", step=0.1)
-c_sew = cost_c4.number_input("4.봉제 (Sewing)", min_value=0.0, format="%.2f", step=0.1)
+# --- [UPDATED] 원가 등록 및 업체명 입력 ---
+st.markdown("##### 💰 예상 원가 및 수행 업체 등록 (Cost & Vendors)")
+st.caption("각 공정별 예상 단가(USD)와 수행할 업체명(Factory Name)을 입력하세요.")
 
-cost_c5, cost_c6, cost_c7, cost_c8 = st.columns(4)
-c_epw = cost_c5.number_input("5.EPW (Embroidery, Printing, Washing)", min_value=0.0, format="%.2f", step=0.1)
-c_trans = cost_c6.number_input("6.운반비", min_value=0.0, format="%.2f", step=0.1)
-c_over = cost_c7.number_input("7.원가성 배부비용", min_value=0.0, format="%.2f", step=0.1)
-c_sga = cost_c8.number_input("➕ 추가 판관비", min_value=0.0, format="%.2f", step=0.1)
+# 2열 그리드로 구성 (금액 | 업체명) 형태로 반복 배치
+# Row 1: 원사, 원단
+rc1, rc2, rc3, rc4 = st.columns([1, 1.5, 1, 1.5])
+with rc1: c_yarn = st.number_input("1.원사 ($)", min_value=0.0, format="%.2f", step=0.1)
+with rc2: v_yarn = st.text_input("원사 업체명", placeholder="Yarn Supplier")
+with rc3: c_fabric = st.number_input("2.원단 ($)", min_value=0.0, format="%.2f", step=0.1)
+with rc4: v_fabric = st.text_input("원단 업체명", placeholder="Fabric Mill")
+
+# Row 2: 가공, 봉제
+rc5, rc6, rc7, rc8 = st.columns([1, 1.5, 1, 1.5])
+with rc5: c_proc = st.number_input("3.원단가공 ($)", min_value=0.0, format="%.2f", step=0.1)
+with rc6: v_proc = st.text_input("가공 업체명", placeholder="Dyeing/Finishing")
+with rc7: c_sew = st.number_input("4.봉제 ($)", min_value=0.0, format="%.2f", step=0.1)
+with rc8: v_sew = st.text_input("봉제 공장명", placeholder="Sewing Factory", value=detail_name if detail_name else "") # 봉제공장은 위에서 입력한 상세공장명 자동 연동
+
+# Row 3: EPW, 운반
+rc9, rc10, rc11, rc12 = st.columns([1, 1.5, 1, 1.5])
+with rc9: c_epw = st.number_input("5.EPW ($)", min_value=0.0, format="%.2f", step=0.1, help="Embroidery, Printing, Washing")
+with rc10: v_epw = st.text_input("EPW 업체명", placeholder="Emb/Print/Wash")
+with rc11: c_trans = st.number_input("6.운반비 ($)", min_value=0.0, format="%.2f", step=0.1)
+with rc12: v_trans = st.text_input("운송 업체명", placeholder="Logistics")
+
+# Row 4: 배부비용, 판관비
+rc13, rc14, rc15, rc16 = st.columns([1, 1.5, 1, 1.5])
+with rc13: c_over = st.number_input("7.배부비용 ($)", min_value=0.0, format="%.2f", step=0.1)
+with rc14: st.markdown("*(Internal Cost)*")
+with rc15: c_sga = st.number_input("➕ 추가 판관비 ($)", min_value=0.0, format="%.2f", step=0.1)
+with rc16: st.markdown("*(SG&A)*")
 
 # 수익성 계산
 est_revenue = qty * unit_price
@@ -255,25 +276,46 @@ op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
 
 st.markdown("---")
 
-st.subheader("📊 영업 수익성 분석 (Profitability)")
+st.subheader("📊 영업 수익성 분석")
 col_est, col_act = st.columns(2)
 with col_est:
     st.info("**[예상 영업수익성] (Pre-shipment)**")
-    st.markdown(f"""
-    - **예상 매출**: :blue[${est_revenue:,.2f}] ({qty:,} pcs × ${unit_price})
-    - **예상 원가**: :red[${total_mfg_cost:,.2f}] (Unit: ${total_mfg_cost_unit:.2f})
-    - **예상 영업이익**: **${op_profit:,.2f}** ({op_margin:.1f}%)
-    """)
+    st.write(f"매출: ${est_revenue:,.2f} / 원가: ${total_mfg_cost:,.2f}")
+    st.write(f"**영업이익: ${op_profit:,.2f} ({op_margin:.1f}%)**")
 
 with col_act:
     st.success("**[확정 영업수익성] (Post-shipment)**")
-    st.caption("※ 오더 확정 버튼 클릭 시, 현재 입력값이 확정치로 저장됩니다.")
-    st.markdown(f"""
-    - **확정 매출**: :blue[${est_revenue:,.2f}]
-    - **확정 원가**: :red[${total_mfg_cost:,.2f}]
-    - **확정 영업이익**: **${op_profit:,.2f}** ({op_margin:.1f}%)
-    """)
+    st.write(f"매출: ${est_revenue:,.2f} / 원가: ${total_mfg_cost:,.2f}")
+    st.write(f"**영업이익: ${op_profit:,.2f} ({op_margin:.1f}%)**")
 
+st.markdown("---")
+
+# --- [UPDATED] 공정 진행 상태 표시 ---
+st.subheader("🚀 오더 진행 현황 (Progress Tracking)")
+
+# 진행 단계 정의
+progress_steps = ["Planning", "Yarn", "Fabric", "Processing", "Sewing", "EPW", "Inspection", "Shipping", "Completed"]
+# 사용자로부터 현재 단계 선택
+current_stage = st.selectbox("현재 진행 공정을 선택하세요:", progress_steps, index=0)
+
+# 진행률 계산 (인덱스 기반)
+current_idx = progress_steps.index(current_stage)
+progress_value = (current_idx + 1) / len(progress_steps)
+
+# 진행바 표시
+st.progress(progress_value)
+# 화살표 흐름도 표시
+step_html = ""
+for i, step in enumerate(progress_steps):
+    color = "blue" if i <= current_idx else "gray"
+    weight = "bold" if i == current_idx else "normal"
+    marker = "🔵" if i <= current_idx else "⚪"
+    step_html += f"<span style='color:{color}; font-weight:{weight}'>{marker} {step}</span>"
+    if i < len(progress_steps) - 1:
+        step_html += " &rarr; "
+st.markdown(step_html, unsafe_allow_html=True)
+
+st.write("") 
 st.write("") 
 
 btn_col1, btn_col2 = st.columns([1, 1])
@@ -293,10 +335,13 @@ def save_order(status):
         "수량": qty, "단가": unit_price,
         "납기일": str(del_date), "국가": country, "생산구분": prod_type,
         "상세공장명": detail_name, "사용라인": lines,
-        "상태": status,
+        "상태": status, "진행상태": current_stage,
         "매출($)": round(est_revenue, 2),
         "영업이익($)": round(op_profit, 2),
-        "이익률(%)": round(op_margin, 1)
+        "이익률(%)": round(op_margin, 1),
+        # 업체명 정보 저장
+        "V_Yarn": v_yarn, "V_Fabric": v_fabric, "V_Proc": v_proc, 
+        "V_Sew": v_sew, "V_EPW": v_epw, "V_Trans": v_trans
     }
     st.session_state.orders.append(new_order)
 
@@ -325,7 +370,8 @@ c_list.subheader("📋 오더 리스트")
 
 if st.session_state.orders:
     df = pd.DataFrame(st.session_state.orders)
-    cols_order = ["상태", "연도", "바이어", "스타일", "수량", "매출($)", "영업이익($)", "이익률(%)", "국가", "납기일"]
+    # 리스트에 진행상태 컬럼 추가 표시
+    cols_order = ["상태", "진행상태", "연도", "바이어", "스타일", "수량", "매출($)", "영업이익($)", "이익률(%)", "국가", "납기일"]
     display_cols = [c for c in cols_order if c in df.columns]
     st.dataframe(df[display_cols], use_container_width=True)
     
@@ -343,26 +389,22 @@ if st.session_state.orders:
 else:
     st.info("등록된 오더가 없습니다.")
 
-# --- [MODIFIED] 8. 고급 분석 대시보드 ---
+# --- 8. 오더 분석 및 시각화 ---
 st.markdown("---")
 st.subheader("📈 오더 분석 및 시각화(최대 10년치)")
 
 if st.session_state.orders:
     df_anal = pd.DataFrame(st.session_state.orders)
     
-    # 8-1. 분석 기준 선택
     anal_col1, anal_col2, anal_col3 = st.columns([1, 1, 2])
     criteria = anal_col1.selectbox("📊 분석 기준 선택", ["바이어", "복종", "카테고리", "생산국가", "수출국가", "시즌"])
     metric = anal_col2.selectbox("📈 시각화 지표", ["매출($)", "영업이익($)", "수량"])
     
-    # 8-2. 데이터 가공
     try:
         pivot_df = df_anal.pivot_table(index="연도", columns=criteria, values=metric, aggfunc="sum", fill_value=0)
         
-        # 8-3. 꺾은선 그래프
         st.line_chart(pivot_df)
         
-        # 8-4. 엑셀 다운로드
         st.markdown("##### 📄 분석 데이터 상세 (Table)")
         st.dataframe(pivot_df.style.format("{:,.0f}"), use_container_width=True)
         
