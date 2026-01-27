@@ -19,7 +19,7 @@ if 'factory_info' not in st.session_state:
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
 
-# 10년치 과거 데이터 자동 생성
+# 10년치 과거 오더 데이터 자동 생성
 def generate_mock_history():
     mock_data = []
     years = range(2016, 2026) 
@@ -56,8 +56,37 @@ def generate_mock_history():
         })
     return mock_data
 
+# [NEW] 10년치 매장 판매 데이터 자동 생성 (Sales Data)
+def generate_mock_sales():
+    mock_sales = []
+    years = range(2016, 2026)
+    buyers = ["Target", "Walmart", "Zara", "Gap", "Uniqlo"]
+    categories = ["Ladies", "Men", "Kids", "Toddler"]
+    regions = ["North America", "Europe", "Asia Pacific", "Latin America"]
+    
+    for _ in range(300): # 판매 데이터 생성
+        yr = str(random.choice(years))
+        buy = random.choice(buyers)
+        cat = random.choice(categories)
+        reg = random.choice(regions)
+        
+        sold_qty = random.randint(500, 40000)
+        retail_price = random.uniform(15.0, 60.0) # 소매가
+        sales_amt = sold_qty * retail_price
+        
+        mock_sales.append({
+            "연도": yr, "바이어": buy, "카테고리": cat, "판매지역": reg,
+            "판매량(Qty)": sold_qty, "판매금액($)": round(sales_amt, 2),
+            "정상가판매율(%)": round(random.uniform(40, 90), 1)
+        })
+    return mock_sales
+
 if 'orders' not in st.session_state:
     st.session_state.orders = generate_mock_history()
+
+# [NEW] 판매 데이터 세션 초기화
+if 'sales_data' not in st.session_state:
+    st.session_state.sales_data = generate_mock_sales()
 
 if 'history_log' not in st.session_state:
     st.session_state.history_log = []
@@ -137,7 +166,7 @@ with st.sidebar:
             st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
 # --- 4. 메인 타이틀 ---
-st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 공급망 관리 시스템</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- 5. 대시보드 (가동 현황) ---
@@ -270,7 +299,7 @@ op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
 
 st.markdown("---")
 
-# --- [UPDATED] 1. 오더 진행 현황 (물류 추적 링크 추가) ---
+# --- 1. 오더 진행 현황 (물류 추적) ---
 st.subheader("🚀 오더 진행 현황 (Progress Tracking)")
 
 progress_steps = [
@@ -281,37 +310,30 @@ progress_steps = [
 
 current_stage = st.selectbox("현재 진행 공정을 선택하세요:", progress_steps, index=0)
 
-# 단계별 추적 입력창 (동적 표시)
 logistics_info_col1, logistics_info_col2 = st.columns([3, 1])
 tracking_url = ""
 
-# 물류 단계일 경우 입력창 활성화
 if current_stage in ["Ex-Factory", "Shipping Port", "Shipped", "Destination Port", "In-land Trucking", "Warehouse"]:
     with logistics_info_col1:
         track_no = st.text_input("🚢 운송장 번호 / 선박명 / B/L No (Tracking Info)", placeholder="Tracking Number or Vessel Name")
     
     with logistics_info_col2:
         st.write("")
-        st.write("") # 줄맞춤
+        st.write("") 
         
-        # 단계별 링크 분기
         if current_stage == "Shipped":
-            # MarineTraffic (선박 추적) 예시
             tracking_url = f"https://www.marinetraffic.com/en/ais/home/search:{track_no if track_no else ''}"
             st.link_button("🚢 선박 위치 추적 (MarineTraffic)", tracking_url, use_container_width=True)
             
         elif current_stage in ["Shipping Port", "Destination Port"]:
-            # 포트 스케줄 예시 (구글 검색)
             tracking_url = f"https://www.google.com/search?q={track_no}+port+schedule"
             st.link_button("⚓ 항만 스케줄 조회", tracking_url, use_container_width=True)
             
         elif current_stage == "In-land Trucking":
-            # 일반 화물 추적 예시
             tracking_url = f"https://www.google.com/search?q={track_no}+tracking"
             st.link_button("🚛 화물 위치 추적", tracking_url, use_container_width=True)
 
         elif current_stage in ["Ex-Factory", "Warehouse"]:
-             # 창고/공장 출고 조회 (예시)
             st.button("🏭 입출고 현황 조회 (WMS)", disabled=True, use_container_width=True)
 
 
@@ -436,16 +458,17 @@ if st.session_state.orders:
 else:
     st.info("등록된 오더가 없습니다.")
 
-# --- 8. 오더 분석 및 시각화 ---
+# --- 8. 오더 분석 (Production Analysis) ---
 st.markdown("---")
-st.subheader("📈 오더 분석 및 시각화(최대 10년치)")
+# [수정된 부분] 제목 변경
+st.subheader("📈 오더 분석(최대 10년)")
 
 if st.session_state.orders:
     df_anal = pd.DataFrame(st.session_state.orders)
     
     anal_col1, anal_col2, anal_col3 = st.columns([1, 1, 2])
-    criteria = anal_col1.selectbox("📊 분석 기준 선택", ["바이어", "복종", "카테고리", "생산국가", "수출국가", "시즌"])
-    metric = anal_col2.selectbox("📈 시각화 지표", ["매출($)", "영업이익($)", "수량"])
+    criteria = anal_col1.selectbox("📊 분석 기준 선택 (오더)", ["바이어", "복종", "카테고리", "생산국가", "수출국가", "시즌"])
+    metric = anal_col2.selectbox("📈 시각화 지표 (오더)", ["매출($)", "영업이익($)", "수량"])
     
     try:
         pivot_df = df_anal.pivot_table(index="연도", columns=criteria, values=metric, aggfunc="sum", fill_value=0)
@@ -461,9 +484,9 @@ if st.session_state.orders:
         excel_anal_data = output_anal.getvalue()
         
         anal_col3.download_button(
-            label=f"📥 '{criteria}'별 분석 데이터 엑셀 저장",
+            label=f"📥 '{criteria}'별 오더 분석 데이터 엑셀 저장",
             data=excel_anal_data,
-            file_name=f"trend_analysis_{criteria}.xlsx",
+            file_name=f"order_analysis_{criteria}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
@@ -473,3 +496,46 @@ if st.session_state.orders:
 else:
     st.info("분석할 데이터가 없습니다.")
 
+# --- [NEW] 9. 매장 판매 현황 분석 (Store Sales Analysis) ---
+st.markdown("---")
+st.subheader("🛒 해당 스타일 매장 판매 현황(최대 10년)")
+
+if st.session_state.sales_data:
+    df_sales = pd.DataFrame(st.session_state.sales_data)
+    
+    sale_col1, sale_col2, sale_col3 = st.columns([1, 1, 2])
+    # 판매 데이터 분석 기준
+    s_criteria = sale_col1.selectbox("📊 분석 기준 선택 (판매)", ["바이어", "카테고리", "판매지역"])
+    # 판매 데이터 지표
+    s_metric = sale_col2.selectbox("📈 시각화 지표 (판매)", ["판매금액($)", "판매량(Qty)", "정상가판매율(%)"])
+    
+    try:
+        # Pivot logic for Sales Data
+        if s_metric == "정상가판매율(%)":
+            pivot_sales = df_sales.pivot_table(index="연도", columns=s_criteria, values=s_metric, aggfunc="mean", fill_value=0)
+        else:
+            pivot_sales = df_sales.pivot_table(index="연도", columns=s_criteria, values=s_metric, aggfunc="sum", fill_value=0)
+        
+        st.line_chart(pivot_sales)
+        
+        st.markdown("##### 📄 매장 판매 데이터 상세 (Table)")
+        st.dataframe(pivot_sales.style.format("{:,.1f}" if s_metric=="정상가판매율(%)" else "{:,.0f}"), use_container_width=True)
+        
+        output_sales = io.BytesIO()
+        with pd.ExcelWriter(output_sales, engine='xlsxwriter') as writer:
+            pivot_sales.to_excel(writer, sheet_name='Sales_Analytics')
+        excel_sales_data = output_sales.getvalue()
+        
+        sale_col3.download_button(
+            label=f"📥 '{s_criteria}'별 판매 현황 데이터 엑셀 저장",
+            data=excel_sales_data,
+            file_name=f"sales_analysis_{s_criteria}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+        
+    except Exception as e:
+        st.error(f"판매 데이터 분석 중 오류가 발생했습니다: {e}")
+
+else:
+    st.info("판매 데이터가 없습니다.")
