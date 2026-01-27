@@ -52,7 +52,7 @@ def generate_mock_history():
             "이익률(%)": round((profit/revenue)*100, 1),
             "국가": ctry, "생산구분": random.choice(["Main", "Outsourced"]),
             "납기일": f"{yr}-06-15", "상태": "Confirmed",
-            "진행상태": "Shipped" # 과거 데이터는 모두 선적 완료로 가정
+            "진행상태": "Shipped" 
         })
     return mock_data
 
@@ -137,7 +137,7 @@ with st.sidebar:
             st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
 # --- 4. 메인 타이틀 ---
-st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 공급망 관리 시스템</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- 5. 대시보드 (가동 현황) ---
@@ -145,7 +145,6 @@ st.subheader("🏭 국가별 공장 가동 현황")
 
 usage_data = {f: {"Main": 0, "Outsourced": 0} for f in st.session_state.factory_info}
 for item in st.session_state.orders:
-    # 현재 연도(시스템 시간 기준) 데이터만 가동률에 반영
     if item["국가"] in usage_data and str(item.get('연도')) == str(datetime.now().year):
         usage_data[item["국가"]][item["생산구분"]] += int(item.get("사용라인", 0))
 
@@ -233,40 +232,35 @@ lines = c7.number_input("필요 라인", min_value=1, value=1)
 
 st.markdown("---")
 
-# --- [UPDATED] 원가 등록 및 업체명 입력 ---
+# --- 원가 등록 및 업체명 입력 ---
 st.markdown("##### 💰 예상 원가 및 수행 업체 등록 (Cost & Vendors)")
 st.caption("각 공정별 예상 단가(USD)와 수행할 업체명(Factory Name)을 입력하세요.")
 
-# 2열 그리드로 구성 (금액 | 업체명) 형태로 반복 배치
-# Row 1: 원사, 원단
 rc1, rc2, rc3, rc4 = st.columns([1, 1.5, 1, 1.5])
 with rc1: c_yarn = st.number_input("1.원사 ($)", min_value=0.0, format="%.2f", step=0.1)
 with rc2: v_yarn = st.text_input("원사 업체명", placeholder="Yarn Supplier")
 with rc3: c_fabric = st.number_input("2.원단 ($)", min_value=0.0, format="%.2f", step=0.1)
 with rc4: v_fabric = st.text_input("원단 업체명", placeholder="Fabric Mill")
 
-# Row 2: 가공, 봉제
 rc5, rc6, rc7, rc8 = st.columns([1, 1.5, 1, 1.5])
 with rc5: c_proc = st.number_input("3.원단가공 ($)", min_value=0.0, format="%.2f", step=0.1)
 with rc6: v_proc = st.text_input("가공 업체명", placeholder="Dyeing/Finishing")
 with rc7: c_sew = st.number_input("4.봉제 ($)", min_value=0.0, format="%.2f", step=0.1)
-with rc8: v_sew = st.text_input("봉제 공장명", placeholder="Sewing Factory", value=detail_name if detail_name else "") # 봉제공장은 위에서 입력한 상세공장명 자동 연동
+with rc8: v_sew = st.text_input("봉제 공장명", placeholder="Sewing Factory", value=detail_name if detail_name else "") 
 
-# Row 3: EPW, 운반
 rc9, rc10, rc11, rc12 = st.columns([1, 1.5, 1, 1.5])
 with rc9: c_epw = st.number_input("5.EPW ($)", min_value=0.0, format="%.2f", step=0.1, help="Embroidery, Printing, Washing")
 with rc10: v_epw = st.text_input("EPW 업체명", placeholder="Emb/Print/Wash")
 with rc11: c_trans = st.number_input("6.운반비 ($)", min_value=0.0, format="%.2f", step=0.1)
 with rc12: v_trans = st.text_input("운송 업체명", placeholder="Logistics")
 
-# Row 4: 배부비용, 판관비
 rc13, rc14, rc15, rc16 = st.columns([1, 1.5, 1, 1.5])
 with rc13: c_over = st.number_input("7.배부비용 ($)", min_value=0.0, format="%.2f", step=0.1)
 with rc14: st.markdown("*(Internal Cost)*")
 with rc15: c_sga = st.number_input("➕ 추가 판관비 ($)", min_value=0.0, format="%.2f", step=0.1)
 with rc16: st.markdown("*(SG&A)*")
 
-# 수익성 계산
+# 수익성 계산 (로직 유지)
 est_revenue = qty * unit_price
 total_mfg_cost_unit = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
 total_mfg_cost = total_mfg_cost_unit * qty
@@ -276,6 +270,43 @@ op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
 
 st.markdown("---")
 
+# --- [MOVED UP] 1. 오더 진행 현황 ---
+st.subheader("🚀 오더 진행 현황 (Progress Tracking)")
+
+progress_steps = ["Planning", "Yarn", "Fabric", "Processing", "Sewing", "EPW", "Inspection", "Shipping", "Completed"]
+current_stage = st.selectbox("현재 진행 공정을 선택하세요:", progress_steps, index=0)
+
+current_idx = progress_steps.index(current_stage)
+progress_value = (current_idx + 1) / len(progress_steps)
+st.progress(progress_value)
+
+step_html = ""
+for i, step in enumerate(progress_steps):
+    color = "blue" if i <= current_idx else "gray"
+    weight = "bold" if i == current_idx else "normal"
+    marker = "🔵" if i <= current_idx else "⚪"
+    step_html += f"<span style='color:{color}; font-weight:{weight}'>{marker} {step}</span>"
+    if i < len(progress_steps) - 1:
+        step_html += " &rarr; "
+st.markdown(step_html, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# --- [NEW] 2. 지속가능경영 (ESG) ---
+st.subheader("🌿 지속가능경영 (Sustainability)")
+sus1, sus2, sus3 = st.columns(3)
+with sus1:
+    sus_power = st.number_input("전력 (kw)", min_value=0.0, step=100.0)
+with sus2:
+    sus_water = st.number_input("물 절감 (리터)", min_value=0.0, step=100.0)
+with sus3:
+    sus_carbon = st.number_input("기타 자원/탄소절감 (kg)", min_value=0.0, step=50.0)
+
+st.caption("*전력, 물 및 기타 자원 절감량을 탄소절감량으로 환산 가능함")
+
+st.markdown("---")
+
+# --- [MOVED DOWN] 3. 영업 수익성 분석 ---
 st.subheader("📊 영업 수익성 분석")
 col_est, col_act = st.columns(2)
 with col_est:
@@ -288,43 +319,15 @@ with col_act:
     st.write(f"매출: ${est_revenue:,.2f} / 원가: ${total_mfg_cost:,.2f}")
     st.write(f"**영업이익: ${op_profit:,.2f} ({op_margin:.1f}%)**")
 
-st.markdown("---")
-
-# --- [UPDATED] 공정 진행 상태 표시 ---
-st.subheader("🚀 오더 진행 현황 (Progress Tracking)")
-
-# 진행 단계 정의
-progress_steps = ["Planning", "Yarn", "Fabric", "Processing", "Sewing", "EPW", "Inspection", "Shipping", "Completed"]
-# 사용자로부터 현재 단계 선택
-current_stage = st.selectbox("현재 진행 공정을 선택하세요:", progress_steps, index=0)
-
-# 진행률 계산 (인덱스 기반)
-current_idx = progress_steps.index(current_stage)
-progress_value = (current_idx + 1) / len(progress_steps)
-
-# 진행바 표시
-st.progress(progress_value)
-# 화살표 흐름도 표시
-step_html = ""
-for i, step in enumerate(progress_steps):
-    color = "blue" if i <= current_idx else "gray"
-    weight = "bold" if i == current_idx else "normal"
-    marker = "🔵" if i <= current_idx else "⚪"
-    step_html += f"<span style='color:{color}; font-weight:{weight}'>{marker} {step}</span>"
-    if i < len(progress_steps) - 1:
-        step_html += " &rarr; "
-st.markdown(step_html, unsafe_allow_html=True)
-
-st.write("") 
 st.write("") 
 
+# --- 버튼 및 저장 로직 ---
 btn_col1, btn_col2 = st.columns([1, 1])
 
 current_u = usage_data[country][prod_type]
 limit = st.session_state.factory_info[country][prod_type]
 is_capa_full = (current_u + lines > limit)
 
-# 오더 저장 함수
 def save_order(status):
     full_style_code = f"{s_name}_{s_year}_{s_season}_{s_fabric}_{s_cat}_{s_prod}_{s_dest}"
     new_order = {
@@ -339,9 +342,10 @@ def save_order(status):
         "매출($)": round(est_revenue, 2),
         "영업이익($)": round(op_profit, 2),
         "이익률(%)": round(op_margin, 1),
-        # 업체명 정보 저장
         "V_Yarn": v_yarn, "V_Fabric": v_fabric, "V_Proc": v_proc, 
-        "V_Sew": v_sew, "V_EPW": v_epw, "V_Trans": v_trans
+        "V_Sew": v_sew, "V_EPW": v_epw, "V_Trans": v_trans,
+        # ESG 정보 추가
+        "ESG_Power": sus_power, "ESG_Water": sus_water, "ESG_Carbon": sus_carbon
     }
     st.session_state.orders.append(new_order)
 
@@ -370,8 +374,8 @@ c_list.subheader("📋 오더 리스트")
 
 if st.session_state.orders:
     df = pd.DataFrame(st.session_state.orders)
-    # 리스트에 진행상태 컬럼 추가 표시
-    cols_order = ["상태", "진행상태", "연도", "바이어", "스타일", "수량", "매출($)", "영업이익($)", "이익률(%)", "국가", "납기일"]
+    # 리스트에 ESG 관련 컬럼이 있다면 표시 (과거 데이터엔 없을 수 있음)
+    cols_order = ["상태", "진행상태", "연도", "바이어", "스타일", "수량", "매출($)", "영업이익($)", "ESG_Carbon", "국가", "납기일"]
     display_cols = [c for c in cols_order if c in df.columns]
     st.dataframe(df[display_cols], use_container_width=True)
     
@@ -425,4 +429,3 @@ if st.session_state.orders:
         st.error(f"데이터 분석 중 오류가 발생했습니다: {e}")
 else:
     st.info("분석할 데이터가 없습니다.")
-
