@@ -137,7 +137,7 @@ with st.sidebar:
             st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
 # --- 4. 메인 타이틀 ---
-st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 공급망 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- 5. 대시보드 (가동 현황) ---
@@ -429,3 +429,4 @@ if st.session_state.orders:
         st.error(f"데이터 분석 중 오류가 발생했습니다: {e}")
 else:
     st.info("분석할 데이터가 없습니다.")
+
