@@ -52,7 +52,7 @@ def generate_mock_history():
             "이익률(%)": round((profit/revenue)*100, 1),
             "국가": ctry, "생산구분": random.choice(["Main", "Outsourced"]),
             "납기일": f"{yr}-06-15", "상태": "Confirmed",
-            "진행상태": "Shipped" 
+            "진행상태": "Store" 
         })
     return mock_data
 
@@ -137,7 +137,7 @@ with st.sidebar:
             st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
 # --- 4. 메인 타이틀 ---
-st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 공급망 관리 시스템</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 생산 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- 5. 대시보드 (가동 현황) ---
@@ -260,7 +260,7 @@ with rc14: st.markdown("*(Internal Cost)*")
 with rc15: c_sga = st.number_input("➕ 추가 판관비 ($)", min_value=0.0, format="%.2f", step=0.1)
 with rc16: st.markdown("*(SG&A)*")
 
-# 수익성 계산 (로직 유지)
+# 수익성 계산
 est_revenue = qty * unit_price
 total_mfg_cost_unit = c_yarn + c_fabric + c_proc + c_sew + c_epw + c_trans + c_over
 total_mfg_cost = total_mfg_cost_unit * qty
@@ -270,11 +270,50 @@ op_margin = (op_profit / est_revenue * 100) if est_revenue > 0 else 0
 
 st.markdown("---")
 
-# --- [MOVED UP] 1. 오더 진행 현황 ---
+# --- [UPDATED] 1. 오더 진행 현황 (물류 추적 링크 추가) ---
 st.subheader("🚀 오더 진행 현황 (Progress Tracking)")
 
-progress_steps = ["Planning", "Yarn", "Fabric", "Processing", "Sewing", "EPW", "Inspection", "Shipping", "Completed"]
+progress_steps = [
+    "Planning", "Yarn", "Fabric", "Processing", "Sewing", "EPW", "Inspection", 
+    "Ex-Factory", "Shipping Port", "Shipped", "Destination Port", 
+    "In-land Trucking", "Warehouse", "Store (Remained Days)"
+]
+
 current_stage = st.selectbox("현재 진행 공정을 선택하세요:", progress_steps, index=0)
+
+# 단계별 추적 입력창 (동적 표시)
+logistics_info_col1, logistics_info_col2 = st.columns([3, 1])
+tracking_url = ""
+
+# 물류 단계일 경우 입력창 활성화
+if current_stage in ["Ex-Factory", "Shipping Port", "Shipped", "Destination Port", "In-land Trucking", "Warehouse"]:
+    with logistics_info_col1:
+        track_no = st.text_input("🚢 운송장 번호 / 선박명 / B/L No (Tracking Info)", placeholder="Tracking Number or Vessel Name")
+    
+    with logistics_info_col2:
+        st.write("")
+        st.write("") # 줄맞춤
+        
+        # 단계별 링크 분기
+        if current_stage == "Shipped":
+            # MarineTraffic (선박 추적) 예시
+            tracking_url = f"https://www.marinetraffic.com/en/ais/home/search:{track_no if track_no else ''}"
+            st.link_button("🚢 선박 위치 추적 (MarineTraffic)", tracking_url, use_container_width=True)
+            
+        elif current_stage in ["Shipping Port", "Destination Port"]:
+            # 포트 스케줄 예시 (구글 검색)
+            tracking_url = f"https://www.google.com/search?q={track_no}+port+schedule"
+            st.link_button("⚓ 항만 스케줄 조회", tracking_url, use_container_width=True)
+            
+        elif current_stage == "In-land Trucking":
+            # 일반 화물 추적 예시
+            tracking_url = f"https://www.google.com/search?q={track_no}+tracking"
+            st.link_button("🚛 화물 위치 추적", tracking_url, use_container_width=True)
+
+        elif current_stage in ["Ex-Factory", "Warehouse"]:
+             # 창고/공장 출고 조회 (예시)
+            st.button("🏭 입출고 현황 조회 (WMS)", disabled=True, use_container_width=True)
+
 
 current_idx = progress_steps.index(current_stage)
 progress_value = (current_idx + 1) / len(progress_steps)
@@ -285,14 +324,20 @@ for i, step in enumerate(progress_steps):
     color = "blue" if i <= current_idx else "gray"
     weight = "bold" if i == current_idx else "normal"
     marker = "🔵" if i <= current_idx else "⚪"
-    step_html += f"<span style='color:{color}; font-weight:{weight}'>{marker} {step}</span>"
+    display_step = step
+    step_html += f"<span style='color:{color}; font-weight:{weight}; font-size:14px'>{marker} {display_step}</span>"
     if i < len(progress_steps) - 1:
         step_html += " &rarr; "
 st.markdown(step_html, unsafe_allow_html=True)
 
+if current_stage == "Store (Remained Days)":
+    st.write("")
+    remained_days = st.number_input("매장 도착까지 남은 일수 (D-Day)", min_value=0, value=7)
+    st.info(f"🚚 매장 입고까지 약 **{remained_days}일** 남았습니다.")
+
 st.markdown("---")
 
-# --- [NEW] 2. 지속가능경영 (ESG) ---
+# --- 2. 지속가능경영 (ESG) ---
 st.subheader("🌿 지속가능경영 (Sustainability)")
 sus1, sus2, sus3 = st.columns(3)
 with sus1:
@@ -306,7 +351,7 @@ st.caption("*전력, 물 및 기타 자원 절감량을 탄소절감량으로 �
 
 st.markdown("---")
 
-# --- [MOVED DOWN] 3. 영업 수익성 분석 ---
+# --- 3. 영업 수익성 분석 ---
 st.subheader("📊 영업 수익성 분석")
 col_est, col_act = st.columns(2)
 with col_est:
@@ -344,7 +389,6 @@ def save_order(status):
         "이익률(%)": round(op_margin, 1),
         "V_Yarn": v_yarn, "V_Fabric": v_fabric, "V_Proc": v_proc, 
         "V_Sew": v_sew, "V_EPW": v_epw, "V_Trans": v_trans,
-        # ESG 정보 추가
         "ESG_Power": sus_power, "ESG_Water": sus_water, "ESG_Carbon": sus_carbon
     }
     st.session_state.orders.append(new_order)
@@ -374,7 +418,6 @@ c_list.subheader("📋 오더 리스트")
 
 if st.session_state.orders:
     df = pd.DataFrame(st.session_state.orders)
-    # 리스트에 ESG 관련 컬럼이 있다면 표시 (과거 데이터엔 없을 수 있음)
     cols_order = ["상태", "진행상태", "연도", "바이어", "스타일", "수량", "매출($)", "영업이익($)", "ESG_Carbon", "국가", "납기일"]
     display_cols = [c for c in cols_order if c in df.columns]
     st.dataframe(df[display_cols], use_container_width=True)
@@ -429,4 +472,3 @@ if st.session_state.orders:
         st.error(f"데이터 분석 중 오류가 발생했습니다: {e}")
 else:
     st.info("분석할 데이터가 없습니다.")
-
