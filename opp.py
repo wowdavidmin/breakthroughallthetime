@@ -90,7 +90,6 @@ with st.sidebar:
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
-    # 비밀번호 1452
     if admin_pw == "1452":
         st.success("인증 성공")
         tab1, tab2 = st.tabs(["Capa 설정", "수정 이력"])
