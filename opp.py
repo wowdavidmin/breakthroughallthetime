@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import io
 import random
+import yfinance as yf # [필수] 야후 파이낸스 라이브러리
 
 # --- 1. 페이지 설정 ---
 st.set_page_config(page_title="Global Supply Chain Manager", layout="wide")
@@ -18,6 +19,16 @@ if 'factory_info' not in st.session_state:
         "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5, "Currency": "NIO"},
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
+
+# [NEW] 주요 고객사 주식 티커 매핑 (공시 조회용)
+TICKER_MAP = {
+    "Walmart": "WMT",
+    "Target": "TGT",
+    "Gap": "GPS",
+    "Nike": "NKE",
+    "Adidas": "ADS.DE",
+    "Uniqlo": "9983.T" # 도쿄증권거래소
+}
 
 # 10년치 과거 오더 데이터
 def generate_mock_history():
@@ -85,8 +96,65 @@ if 'sales_data' not in st.session_state:
 if 'history_log' not in st.session_state:
     st.session_state.history_log = []
 
+# [NEW] 실시간 공시/뉴스 가져오기 함수 (캐싱 적용으로 속도 최적화)
+@st.cache_data(ttl=3600) # 1시간마다 갱신
+def fetch_company_news(ticker_map):
+    alerts = []
+    # 필터링할 키워드 (실적, 매출, 이익, 인수 등)
+    keywords = ["Earnings", "Revenue", "Profit", "Quarter", "Outlook", "Acquisition", "Sales"]
+    
+    for buyer, ticker in ticker_map.items():
+        try:
+            # 야후 파이낸스 API 호출
+            stock = yf.Ticker(ticker)
+            news_list = stock.news
+            
+            if news_list:
+                # 최신 뉴스 3개만 확인
+                for news in news_list[:3]:
+                    title = news.get('title', 'No Title')
+                    link = news.get('link', '#')
+                    # 키워드가 포함된 뉴스만 필터링 (없으면 모든 뉴스 표시하려면 아래 if문 제거)
+                    if any(k.lower() in title.lower() for k in keywords):
+                        alerts.append({
+                            "Buyer": buyer, 
+                            "Title": title, 
+                            "Link": link,
+                            "Time": datetime.fromtimestamp(news.get('providerPublishTime', 0)).strftime('%Y-%m-%d')
+                        })
+        except Exception as e:
+            continue # 에러 발생 시 해당 기업 건너뜀
+            
+    return alerts
+
 # --- 3. 사이드바 ---
 with st.sidebar:
+    # [NEW] 1. 주요 경영 공시 알림 섹션
+    st.subheader("🔔 주요 경영 공시 알림 (Alerts)")
+    st.caption("※ Yahoo Finance 실시간 데이터 연동")
+    
+    # 데이터 로딩 중 표시
+    with st.spinner("최신 공시 정보를 불러오는 중..."):
+        try:
+            recent_alerts = fetch_company_news(TICKER_MAP)
+            
+            if recent_alerts:
+                for alert in recent_alerts:
+                    # 빨간색 박스로 알림 표시
+                    st.error(f"**[{alert['Buyer']}]** {alert['Time']}")
+                    st.markdown(f"{alert['Title']}")
+                    st.markdown(f"[👉 뉴스 원문 보기]({alert['Link']})")
+                    st.divider()
+            else:
+                st.success("최근 24시간 내 주요 실적/경영 공시 없음")
+                
+        except Exception as e:
+            st.warning("공시 정보를 불러오는 데 실패했습니다.")
+            st.caption("잠시 후 다시 시도해주세요.")
+
+    st.markdown("---")
+
+    # 2. 관리자 설정
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
@@ -124,7 +192,7 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # 환율 정보
+    # 3. 환율 정보
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
