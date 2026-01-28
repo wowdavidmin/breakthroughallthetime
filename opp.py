@@ -4,7 +4,6 @@ import numpy as np
 from datetime import datetime, timedelta
 import io
 import random
-import yfinance as yf # [필수] 야후 파이낸스 라이브러리
 
 # --- 1. 페이지 설정 ---
 st.set_page_config(page_title="Global Supply Chain Manager", layout="wide")
@@ -19,16 +18,6 @@ if 'factory_info' not in st.session_state:
         "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5, "Currency": "NIO"},
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
-
-# [NEW] 주요 고객사 주식 티커 매핑 (공시 조회용)
-TICKER_MAP = {
-    "Walmart": "WMT",
-    "Target": "TGT",
-    "Gap": "GPS",
-    "Nike": "NKE",
-    "Adidas": "ADS.DE",
-    "Uniqlo": "9983.T" # 도쿄증권거래소
-}
 
 # 10년치 과거 오더 데이터
 def generate_mock_history():
@@ -96,65 +85,8 @@ if 'sales_data' not in st.session_state:
 if 'history_log' not in st.session_state:
     st.session_state.history_log = []
 
-# [NEW] 실시간 공시/뉴스 가져오기 함수 (캐싱 적용으로 속도 최적화)
-@st.cache_data(ttl=3600) # 1시간마다 갱신
-def fetch_company_news(ticker_map):
-    alerts = []
-    # 필터링할 키워드 (실적, 매출, 이익, 인수 등)
-    keywords = ["Earnings", "Revenue", "Profit", "Quarter", "Outlook", "Acquisition", "Sales"]
-    
-    for buyer, ticker in ticker_map.items():
-        try:
-            # 야후 파이낸스 API 호출
-            stock = yf.Ticker(ticker)
-            news_list = stock.news
-            
-            if news_list:
-                # 최신 뉴스 3개만 확인
-                for news in news_list[:3]:
-                    title = news.get('title', 'No Title')
-                    link = news.get('link', '#')
-                    # 키워드가 포함된 뉴스만 필터링 (없으면 모든 뉴스 표시하려면 아래 if문 제거)
-                    if any(k.lower() in title.lower() for k in keywords):
-                        alerts.append({
-                            "Buyer": buyer, 
-                            "Title": title, 
-                            "Link": link,
-                            "Time": datetime.fromtimestamp(news.get('providerPublishTime', 0)).strftime('%Y-%m-%d')
-                        })
-        except Exception as e:
-            continue # 에러 발생 시 해당 기업 건너뜀
-            
-    return alerts
-
 # --- 3. 사이드바 ---
 with st.sidebar:
-    # [NEW] 1. 주요 경영 공시 알림 섹션
-    st.subheader("🔔 주요 경영 공시 알림 (Alerts)")
-    st.caption("※ Yahoo Finance 실시간 데이터 연동")
-    
-    # 데이터 로딩 중 표시
-    with st.spinner("최신 공시 정보를 불러오는 중..."):
-        try:
-            recent_alerts = fetch_company_news(TICKER_MAP)
-            
-            if recent_alerts:
-                for alert in recent_alerts:
-                    # 빨간색 박스로 알림 표시
-                    st.error(f"**[{alert['Buyer']}]** {alert['Time']}")
-                    st.markdown(f"{alert['Title']}")
-                    st.markdown(f"[👉 뉴스 원문 보기]({alert['Link']})")
-                    st.divider()
-            else:
-                st.success("최근 24시간 내 주요 실적/경영 공시 없음")
-                
-        except Exception as e:
-            st.warning("공시 정보를 불러오는 데 실패했습니다.")
-            st.caption("잠시 후 다시 시도해주세요.")
-
-    st.markdown("---")
-
-    # 2. 관리자 설정
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
@@ -192,7 +124,7 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # 3. 환율 정보
+    # 환율 정보
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
@@ -461,3 +393,48 @@ if st.session_state.sales_data:
         sale_col3.download_button(f"📥 '{s_criteria}'별 판매 현황 데이터 엑셀 저장", output_sales.getvalue(), f"sales_analysis_{s_criteria}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
     except Exception as e: st.error(f"판매 데이터 분석 중 오류가 발생했습니다: {e}")
 else: st.info("판매 데이터가 없습니다.")
+
+# --- [NEW] 🤖 M365 Copilot 활용 가이드 ---
+st.markdown("---")
+with st.expander("🤖 M365 Copilot (엑셀/팀즈) 활용 가이드"):
+    st.info("이 기능은 다운로드한 엑셀 데이터를 MS Copilot에게 질문할 때 사용할 수 있는 **최적의 명령어(Prompt)**를 생성해 줍니다.")
+    
+    copilot_task = st.selectbox("어떤 분석을 원하시나요?", [
+        "📊 지난 10년간 가장 매출이 높은 바이어 분석",
+        "📉 최근 3년간 영업이익률이 저조한 공장 및 원인 파악",
+        "📦 현재 진행 중인 오더의 물류 지연 리스크 예측",
+        "🌿 탄소 배출 절감 실적 요약 및 ESG 보고서 초안 작성"
+    ])
+    
+    prompt_text = ""
+    if copilot_task == "📊 지난 10년간 가장 매출이 높은 바이어 분석":
+        prompt_text = """
+        [엑셀 Copilot 프롬프트]
+        이 엑셀 파일의 'Sheet1' 데이터를 분석해줘. 
+        지난 10년(2016~2025) 동안 '매출($)' 합계가 가장 높은 상위 3개 바이어를 찾아줘.
+        그리고 각 바이어별로 어떤 카테고리(Category) 주문이 가장 많았는지 표로 요약해줘.
+        """
+    elif copilot_task == "📉 최근 3년간 영업이익률이 저조한 공장 및 원인 파악":
+        prompt_text = """
+        [엑셀 Copilot 프롬프트]
+        데이터에서 최근 3년(2023~2025) 데이터를 필터링해줘.
+        '국가' 및 '상세공장명' 별로 평균 '이익률(%)'을 계산하고, 이익률이 5% 미만인 공장 리스트를 추출해줘.
+        해당 공장들의 '원가합계' 구성을 분석해서 원가 비중이 가장 높은 항목이 무엇인지 알려줘.
+        """
+    elif copilot_task == "📦 현재 진행 중인 오더의 물류 지연 리스크 예측":
+        prompt_text = """
+        [엑셀 Copilot 프롬프트]
+        '상태'가 'Confirmed'이고 '진행상태'가 'Completed'가 아닌 오더들만 필터링해줘.
+        '납기일'이 오늘 날짜 기준으로 2주 이내로 남은 오더 목록을 만들어줘.
+        각 오더의 현재 '진행상태'를 확인하고, 납기 지연 가능성이 있는 오더를 빨간색으로 표시해줘.
+        """
+    elif copilot_task == "🌿 탄소 배출 절감 실적 요약 및 ESG 보고서 초안 작성":
+        prompt_text = """
+        [워드/팀즈 Copilot 프롬프트]
+        첨부된 엑셀 파일의 'ESG_Carbon', 'ESG_Power', 'ESG_Water' 컬럼 데이터를 기반으로 ESG 성과 보고서를 작성해줘.
+        전체 오더의 총 탄소 절감량(kg)과 물 절감량(L)을 합산해서 보여줘.
+        이 데이터를 활용해서 '2025년 지속가능경영 성과'라는 제목의 짧은 보고서 초안을 써줘.
+        """
+    
+    st.code(prompt_text, language='text')
+    st.caption("☝️ 위 텍스트를 복사(Copy)해서 엑셀/팀즈 Copilot 채팅창에 붙여넣으세요.")
