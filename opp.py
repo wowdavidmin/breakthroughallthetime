@@ -4,7 +4,6 @@ import numpy as np
 from datetime import datetime, timedelta
 import io
 import random
-# import yfinance as yf # [선택 사항] 필요시 주석 해제 및 requirements.txt 확인
 
 # --- 1. 페이지 설정 ---
 st.set_page_config(page_title="Global Supply Chain Manager", layout="wide")
@@ -19,12 +18,6 @@ if 'factory_info' not in st.session_state:
         "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5, "Currency": "NIO"},
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
-
-# [NEW] 주요 고객사 주식 티커 매핑 (필요시 사용)
-TICKER_MAP = {
-    "Walmart": "WMT", "Target": "TGT", "Gap": "GPS",
-    "Nike": "NKE", "Adidas": "ADS.DE", "Uniqlo": "9983.T"
-}
 
 # 10년치 과거 오더 데이터
 def generate_mock_history():
@@ -46,14 +39,10 @@ def generate_mock_history():
         revenue = qty * price
         cost_ratio = random.uniform(0.7, 0.9) 
         profit = revenue * (1 - cost_ratio)
-        style_no = f"H-{yr}-{random.randint(100,999)}"
-
-        # [NEW] 3D 이미지 데모 URL 생성 (실제 환경에서는 실제 URL 사용)
-        demo_3d_url = f"https://www.google.com/search?q={buyer}+{style_no}+3D+View"
-
+        
         mock_data.append({
             "바이어": random.choice(buyers),
-            "스타일": style_no,
+            "스타일": f"H-{yr}-{random.randint(100,999)}",
             "연도": yr, "시즌": random.choice(["C1","C2","C3"]), 
             "복종": fab, "카테고리": cat, "생산국가": ctry.split('(')[0], "수출국가": dest,
             "수량": qty, "단가": round(price, 2),
@@ -62,8 +51,7 @@ def generate_mock_history():
             "이익률(%)": round((profit/revenue)*100, 1),
             "국가": ctry, "생산구분": random.choice(["Main", "Outsourced"]),
             "납기일": f"{yr}-06-15", "상태": "Confirmed",
-            "진행상태": "Store",
-            "3D_URL": demo_3d_url # [NEW] URL 데이터 추가
+            "진행상태": "Store" 
         })
     return mock_data
 
@@ -97,60 +85,8 @@ if 'sales_data' not in st.session_state:
 if 'history_log' not in st.session_state:
     st.session_state.history_log = []
 
-# [선택 사항] 실시간 공시/뉴스 가져오기 함수 (yfinance 설치 필요)
-@st.cache_data(ttl=3600)
-def fetch_company_news(ticker_map):
-    # yfinance가 설치되어 있지 않은 경우를 대비한 예외 처리
-    try:
-        import yfinance as yf
-    except ImportError:
-        return []
-
-    alerts = []
-    keywords = ["Earnings", "Revenue", "Profit", "Quarter", "Outlook", "Acquisition", "Sales"]
-    for buyer, ticker in ticker_map.items():
-        try:
-            stock = yf.Ticker(ticker)
-            news_list = stock.news
-            if news_list:
-                for news in news_list[:3]:
-                    title = news.get('title', 'No Title')
-                    link = news.get('link', '#')
-                    if any(k.lower() in title.lower() for k in keywords):
-                        alerts.append({
-                            "Buyer": buyer, "Title": title, "Link": link,
-                            "Time": datetime.fromtimestamp(news.get('providerPublishTime', 0)).strftime('%Y-%m-%d')
-                        })
-        except Exception:
-            continue
-    return alerts
-
 # --- 3. 사이드바 ---
 with st.sidebar:
-    # 1. 주요 경영 공시 알림 섹션
-    st.subheader("🔔 주요 경영 공시 알림 (Alerts)")
-    st.caption("※ Yahoo Finance 연동 (라이브러리 필요)")
-    
-    # yfinance 설치 여부 확인 후 실행
-    try:
-        import yfinance as yf
-        with st.spinner("최신 공시 정보를 불러오는 중..."):
-            recent_alerts = fetch_company_news(TICKER_MAP)
-            if recent_alerts:
-                for alert in recent_alerts:
-                    st.error(f"**[{alert['Buyer']}]** {alert['Time']}")
-                    st.markdown(f"{alert['Title']}")
-                    st.markdown(f"[👉 뉴스 원문 보기]({alert['Link']})")
-                    st.divider()
-            else:
-                st.success("최근 24시간 내 주요 실적/경영 공시 없음")
-    except ImportError:
-        st.warning("yfinance 라이브러리가 설치되지 않았습니다.")
-        st.caption("공시 알림 기능을 사용하려면 requirements.txt에 yfinance를 추가하세요.")
-
-    st.markdown("---")
-
-    # 2. 관리자 설정
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
@@ -188,7 +124,7 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # 3. 환율 정보
+    # 환율 정보
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
@@ -277,10 +213,6 @@ s_fabric = s4.selectbox("4.복종", ["Woven", "Knit", "Synthetic", "Other"])
 s_cat = s5.selectbox("5.카테고리", ["Ladies", "Men", "Adult", "Kids", "Girls", "Boys", "Toddler"])
 s_prod = s6.selectbox("6.생산국가", ["VNM", "IDN", "MMR", "GTM", "NIC", "HTI", "ETC"])
 s_dest = s7.selectbox("7.수출국가", ["USA", "Europe", "Japan", "Korea", "Other"])
-
-# [NEW] 3D URL 입력 필드 추가
-st.write("")
-s_3d_url = st.text_input("🧊 3D 이미지 URL (Repository Link)", placeholder="https://...")
 
 st.markdown("---")
 c1, c2, c3, c4 = st.columns(4)
@@ -393,8 +325,7 @@ def save_order(status):
         "납기일": str(del_date), "국가": country, "생산구분": prod_type, "상세공장명": detail_name, "사용라인": lines,
         "상태": status, "진행상태": current_stage, "매출($)": round(est_revenue, 2), "영업이익($)": round(op_profit, 2),
         "이익률(%)": round(op_margin, 1), "V_Yarn": v_yarn, "V_Fabric": v_fabric, "V_Proc": v_proc, 
-        "V_Sew": v_sew, "V_EPW": v_epw, "V_Trans": v_trans, "ESG_Power": sus_power, "ESG_Water": sus_water, "ESG_Carbon": sus_carbon,
-        "3D_URL": s_3d_url # [NEW] 저장 시 URL 포함
+        "V_Sew": v_sew, "V_EPW": v_epw, "V_Trans": v_trans, "ESG_Power": sus_power, "ESG_Water": sus_water, "ESG_Carbon": sus_carbon
     }
     st.session_state.orders.append(new_order)
 
@@ -418,26 +349,9 @@ c_list, c_down = st.columns([4, 1])
 c_list.subheader("📋 오더 리스트")
 if st.session_state.orders:
     df = pd.DataFrame(st.session_state.orders)
-    # [NEW] 3D_URL 컬럼 추가 및 순서 조정
-    cols_order = ["상태", "진행상태", "연도", "바이어", "스타일", "3D_URL", "수량", "매출($)", "영업이익($)", "ESG_Carbon", "국가", "납기일"]
+    cols_order = ["상태", "진행상태", "연도", "바이어", "스타일", "수량", "매출($)", "영업이익($)", "ESG_Carbon", "국가", "납기일"]
     display_cols = [c for c in cols_order if c in df.columns]
-    
-    # [NEW] 데이터프레임에 링크 컬럼 설정 적용
-    st.dataframe(
-        df[display_cols], 
-        use_container_width=True,
-        column_config={
-            "3D_URL": st.column_config.LinkColumn(
-                "3D Look", # 컬럼 헤더 이름
-                help="클릭 시 3D 이미지 뷰어로 이동합니다.",
-                validate="^https://.*", # URL 형식 검증 (선택 사항)
-                display_text="🧊 View 3D" # URL 대신 표시할 텍스트/아이콘
-            ),
-             "매출($)": st.column_config.NumberColumn(format="$%.2f"),
-             "영업이익($)": st.column_config.NumberColumn(format="$%.2f"),
-        },
-        hide_index=True
-    )
+    st.dataframe(df[display_cols], use_container_width=True)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Sheet1')
     c_down.download_button("📥 리스트 엑셀 저장", output.getvalue(), "order_list.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -451,18 +365,13 @@ if st.session_state.orders:
     criteria = anal_col1.selectbox("📊 분석 기준 선택 (오더)", ["바이어", "복종", "카테고리", "생산국가", "수출국가", "시즌"])
     metric = anal_col2.selectbox("📈 시각화 지표 (오더)", ["매출($)", "영업이익($)", "수량"])
     try:
-        # pivot table 생성 시 숫자가 아닌 컬럼(3D_URL 등)은 제외하고 계산
-        numeric_cols = df_anal.select_dtypes(include=np.number).columns.tolist()
-        if metric not in numeric_cols:
-             st.warning(f"선택한 지표 '{metric}'는 수치 데이터가 아닙니다.")
-        else:
-            pivot_df = df_anal.pivot_table(index="연도", columns=criteria, values=metric, aggfunc="sum", fill_value=0)
-            st.line_chart(pivot_df)
-            st.markdown("##### 📄 분석 데이터 상세 (Table)")
-            st.dataframe(pivot_df.style.format("{:,.0f}"), use_container_width=True)
-            output_anal = io.BytesIO()
-            with pd.ExcelWriter(output_anal, engine='xlsxwriter') as writer: pivot_df.to_excel(writer, sheet_name='Analytics')
-            anal_col3.download_button(f"📥 '{criteria}'별 오더 분석 데이터 엑셀 저장", output_anal.getvalue(), f"order_analysis_{criteria}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        pivot_df = df_anal.pivot_table(index="연도", columns=criteria, values=metric, aggfunc="sum", fill_value=0)
+        st.line_chart(pivot_df)
+        st.markdown("##### 📄 분석 데이터 상세 (Table)")
+        st.dataframe(pivot_df.style.format("{:,.0f}"), use_container_width=True)
+        output_anal = io.BytesIO()
+        with pd.ExcelWriter(output_anal, engine='xlsxwriter') as writer: pivot_df.to_excel(writer, sheet_name='Analytics')
+        anal_col3.download_button(f"📥 '{criteria}'별 오더 분석 데이터 엑셀 저장", output_anal.getvalue(), f"order_analysis_{criteria}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
     except Exception as e: st.error(f"데이터 분석 중 오류가 발생했습니다: {e}")
 else: st.info("분석할 데이터가 없습니다.")
 
