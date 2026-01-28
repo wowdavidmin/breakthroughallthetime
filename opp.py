@@ -20,37 +20,16 @@ if 'factory_info' not in st.session_state:
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
 
-import streamlit as st
-import yfinance as yf
-
-# 1. 대상 기업 리스트 설정 (티커: 브랜드명)
-target_brands = {
-    'WMT': 'Walmart',
-    'TGT': 'Target',
-    'GPS': 'Gap'
+# [NEW] 바이어 - 주식티커 매핑 (상장사 기준)
+TICKER_MAP = {
+    "Target": "TGT",       # 타겟 (NYSE)
+    "Walmart": "WMT",      # 월마트 (NYSE)
+    "Gap": "GPS",          # 갭 (NYSE)
+    "Uniqlo": "9983.T",    # 패스트리테일링 (도쿄증권거래소)
+    "Zara": "ITX.MC",      # 인디텍스 (마드리드증권거래소)
+    "Nike": "NKE",
+    "Adidas": "ADS.DE"
 }
-
-st.subheader("🔔 주요 공시 및 뉴스 알림 (Alerts)")
-
-for ticker, name in target_brands.items():
-    with st.expander(f"📍 {name} ({ticker}) 최신 소식 보기"):
-        try:
-            # yfinance를 통해 뉴스 및 공시 관련 정보 가져오기
-            stock = yf.Ticker(ticker)
-            news = stock.news
-            
-            if news:
-                for item in news[:3]:  # 최신 3개만 표시
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        st.write(f"**{item['title']}**")
-                    with col2:
-                        st.link_button("바로가기", item['link'])
-            else:
-                st.write("최근 업데이트된 공시나 뉴스가 없습니다.")
-                
-        except Exception as e:
-            st.error(f"{name} 정보를 불러오는 중 오류가 발생했습니다.")
 
 # 10년치 과거 오더 데이터 자동 생성
 def generate_mock_history():
@@ -605,4 +584,3 @@ if st.session_state.sales_data:
 
 else:
     st.info("판매 데이터가 없습니다.")
-
