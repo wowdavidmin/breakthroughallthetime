@@ -6,7 +6,8 @@ import io
 import random
 
 # --- 1. 페이지 설정 ---
-st.set_page_config(page_title="Global Production Manager", layout="wide")
+# [변경됨] 브라우저 탭 이름도 Global Supply Chain Manager로 변경
+st.set_page_config(page_title="Global Supply Chain Manager", layout="wide")
 
 # --- 2. 데이터 초기화 및 10년치 시뮬레이션 데이터 생성 ---
 if 'factory_info' not in st.session_state:
@@ -56,7 +57,7 @@ def generate_mock_history():
         })
     return mock_data
 
-# [NEW] 10년치 매장 판매 데이터 자동 생성 (Sales Data)
+# 10년치 매장 판매 데이터 자동 생성
 def generate_mock_sales():
     mock_sales = []
     years = range(2016, 2026)
@@ -64,14 +65,14 @@ def generate_mock_sales():
     categories = ["Ladies", "Men", "Kids", "Toddler"]
     regions = ["North America", "Europe", "Asia Pacific", "Latin America"]
     
-    for _ in range(300): # 판매 데이터 생성
+    for _ in range(300):
         yr = str(random.choice(years))
         buy = random.choice(buyers)
         cat = random.choice(categories)
         reg = random.choice(regions)
         
         sold_qty = random.randint(500, 40000)
-        retail_price = random.uniform(15.0, 60.0) # 소매가
+        retail_price = random.uniform(15.0, 60.0) 
         sales_amt = sold_qty * retail_price
         
         mock_sales.append({
@@ -84,7 +85,6 @@ def generate_mock_sales():
 if 'orders' not in st.session_state:
     st.session_state.orders = generate_mock_history()
 
-# [NEW] 판매 데이터 세션 초기화
 if 'sales_data' not in st.session_state:
     st.session_state.sales_data = generate_mock_sales()
 
@@ -96,7 +96,8 @@ with st.sidebar:
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
-    if admin_pw == "1234":
+    # [변경됨] 비밀번호 1452로 변경
+    if admin_pw == "1452":
         st.success("인증 성공")
         tab1, tab2 = st.tabs(["Capa 설정", "수정 이력"])
         
@@ -166,6 +167,7 @@ with st.sidebar:
             st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
 # --- 4. 메인 타이틀 ---
+# [변경됨] 타이틀 이름 변경
 st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 공급망 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
@@ -460,7 +462,6 @@ else:
 
 # --- 8. 오더 분석 (Production Analysis) ---
 st.markdown("---")
-# [수정된 부분] 제목 변경
 st.subheader("📈 오더 분석(최대 10년)")
 
 if st.session_state.orders:
@@ -496,7 +497,7 @@ if st.session_state.orders:
 else:
     st.info("분석할 데이터가 없습니다.")
 
-# --- [NEW] 9. 매장 판매 현황 분석 (Store Sales Analysis) ---
+# --- 9. 매장 판매 현황 분석 (Store Sales Analysis) ---
 st.markdown("---")
 st.subheader("🛒 해당 스타일 매장 판매 현황(최대 10년)")
 
@@ -504,13 +505,10 @@ if st.session_state.sales_data:
     df_sales = pd.DataFrame(st.session_state.sales_data)
     
     sale_col1, sale_col2, sale_col3 = st.columns([1, 1, 2])
-    # 판매 데이터 분석 기준
     s_criteria = sale_col1.selectbox("📊 분석 기준 선택 (판매)", ["바이어", "카테고리", "판매지역"])
-    # 판매 데이터 지표
     s_metric = sale_col2.selectbox("📈 시각화 지표 (판매)", ["판매금액($)", "판매량(Qty)", "정상가판매율(%)"])
     
     try:
-        # Pivot logic for Sales Data
         if s_metric == "정상가판매율(%)":
             pivot_sales = df_sales.pivot_table(index="연도", columns=s_criteria, values=s_metric, aggfunc="mean", fill_value=0)
         else:
@@ -539,4 +537,3 @@ if st.session_state.sales_data:
 
 else:
     st.info("판매 데이터가 없습니다.")
-
