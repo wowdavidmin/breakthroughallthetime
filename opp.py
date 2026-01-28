@@ -4,12 +4,12 @@ import numpy as np
 from datetime import datetime, timedelta
 import io
 import random
+import yfinance as yf # [NEW] 주식 정보 라이브러리
 
 # --- 1. 페이지 설정 ---
-# [변경됨] 브라우저 탭 이름도 Global Supply Chain Manager로 변경
 st.set_page_config(page_title="Global Supply Chain Manager", layout="wide")
 
-# --- 2. 데이터 초기화 및 10년치 시뮬레이션 데이터 생성 ---
+# --- 2. 데이터 초기화 ---
 if 'factory_info' not in st.session_state:
     st.session_state.factory_info = {
         "베트남(VNM)":      {"Region": "Asia", "Main": 30, "Outsourced": 20, "Currency": "VND"},
@@ -19,6 +19,17 @@ if 'factory_info' not in st.session_state:
         "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5, "Currency": "NIO"},
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
+
+# [NEW] 바이어 - 주식티커 매핑 (상장사 기준)
+TICKER_MAP = {
+    "Target": "TGT",       # 타겟 (NYSE)
+    "Walmart": "WMT",      # 월마트 (NYSE)
+    "Gap": "GPS",          # 갭 (NYSE)
+    "Uniqlo": "9983.T",    # 패스트리테일링 (도쿄증권거래소)
+    "Zara": "ITX.MC",      # 인디텍스 (마드리드증권거래소)
+    "Nike": "NKE",
+    "Adidas": "ADS.DE"
+}
 
 # 10년치 과거 오더 데이터 자동 생성
 def generate_mock_history():
@@ -37,7 +48,6 @@ def generate_mock_history():
         dest = random.choice(destinations)
         qty = random.randint(1000, 50000)
         price = random.uniform(5.0, 25.0)
-        
         revenue = qty * price
         cost_ratio = random.uniform(0.7, 0.9) 
         profit = revenue * (1 - cost_ratio)
@@ -57,7 +67,7 @@ def generate_mock_history():
         })
     return mock_data
 
-# 10년치 매장 판매 데이터 자동 생성
+# 10년치 매장 판매 데이터 생성
 def generate_mock_sales():
     mock_sales = []
     years = range(2016, 2026)
@@ -70,7 +80,6 @@ def generate_mock_sales():
         buy = random.choice(buyers)
         cat = random.choice(categories)
         reg = random.choice(regions)
-        
         sold_qty = random.randint(500, 40000)
         retail_price = random.uniform(15.0, 60.0) 
         sales_amt = sold_qty * retail_price
@@ -91,12 +100,51 @@ if 'sales_data' not in st.session_state:
 if 'history_log' not in st.session_state:
     st.session_state.history_log = []
 
-# --- 3. 사이드바 (관리자 & 환율 정보) ---
+# [NEW] 공시 정보 가져오기 (캐싱 적용으로 속도 향상)
+@st.cache_data(ttl=3600) # 1시간마다 갱신
+def fetch_company_news(ticker_map):
+    alerts = []
+    # 주요 키워드 (실적, 전망, 인수합병 등)
+    keywords = ["Earnings", "Results", "Revenue", "Profit", "Outlook", "Guidance", "Acquisition", "Merger"]
+    
+    for buyer, ticker in ticker_map.items():
+        try:
+            stock = yf.Ticker(ticker)
+            news_list = stock.news
+            
+            if news_list:
+                for news in news_list[:3]: # 최신 3개만 확인
+                    title = news.get('title', '')
+                    link = news.get('link', '')
+                    # 키워드가 포함된 경우 알림 리스트에 추가
+                    if any(k.lower() in title.lower() for k in keywords):
+                        alerts.append({"Buyer": buyer, "Title": title, "Link": link})
+        except:
+            continue
+    return alerts
+
+# --- 3. 사이드바 (공시 알림 & 설정) ---
 with st.sidebar:
+    # [NEW] 1. 주요 공시 알림 섹션
+    st.subheader("🔔 주요 공시 알림 (Alerts)")
+    
+    with st.spinner("공시 정보 조회 중..."):
+        recent_alerts = fetch_company_news(TICKER_MAP)
+    
+    if recent_alerts:
+        for alert in recent_alerts:
+            with st.expander(f"🚨 {alert['Buyer']} 주요 소식", expanded=True):
+                st.error(alert['Title']) # 빨간색 박스로 강조
+                st.markdown(f"[기사 원문 보기]({alert['Link']})")
+    else:
+        st.success("최근 24시간 내 주요 특이사항 없음")
+        
+    st.markdown("---")
+
+    # 2. 관리자 설정
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
-    # [변경됨] 비밀번호 1452로 변경
     if admin_pw == "1452":
         st.success("인증 성공")
         tab1, tab2 = st.tabs(["Capa 설정", "수정 이력"])
@@ -134,7 +182,7 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # [섹션 2] 환율 정보 대시보드
+    # 3. 환율 정보 대시보드
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
@@ -167,7 +215,6 @@ with st.sidebar:
             st.link_button(f"🔍 Google 환율 ({currency})", url, use_container_width=True)
 
 # --- 4. 메인 타이틀 ---
-# [변경됨] 타이틀 이름 변경
 st.markdown("<h1 style='text-align: center; font-size: 24px; white-space: nowrap;'>글로벌 공급망 관리 시스템</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
