@@ -5,14 +5,6 @@ from datetime import datetime, timedelta
 import io
 import random
 
-# --- [안전 장치] 라이브러리 유무 확인 ---
-try:
-    import yfinance as yf
-    YF_AVAILABLE = True
-except ImportError:
-    YF_AVAILABLE = False
-    yf = None
-
 # --- 1. 페이지 설정 ---
 st.set_page_config(page_title="Global Supply Chain Manager", layout="wide")
 
@@ -26,12 +18,6 @@ if 'factory_info' not in st.session_state:
         "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5, "Currency": "NIO"},
         "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5, "Currency": "HTG"}
     }
-
-# 바이어 - 주식티커 매핑
-TICKER_MAP = {
-    "Target": "TGT", "Walmart": "WMT", "Gap": "GPS",
-    "Uniqlo": "9983.T", "Zara": "ITX.MC", "Nike": "NKE", "Adidas": "ADS.DE"
-}
 
 # 10년치 과거 오더 데이터
 def generate_mock_history():
@@ -99,53 +85,8 @@ if 'sales_data' not in st.session_state:
 if 'history_log' not in st.session_state:
     st.session_state.history_log = []
 
-# 공시 정보 가져오기 (안전 장치 적용)
-@st.cache_data(ttl=3600)
-def fetch_company_news(ticker_map):
-    # 라이브러리가 없으면 빈 리스트 반환 (에러 방지)
-    if not YF_AVAILABLE:
-        return []
-        
-    alerts = []
-    keywords = ["Earnings", "Results", "Revenue", "Profit", "Outlook", "Guidance", "Acquisition", "Merger"]
-    
-    for buyer, ticker in ticker_map.items():
-        try:
-            stock = yf.Ticker(ticker)
-            news_list = stock.news
-            if news_list:
-                for news in news_list[:3]:
-                    title = news.get('title', '')
-                    link = news.get('link', '')
-                    if any(k.lower() in title.lower() for k in keywords):
-                        alerts.append({"Buyer": buyer, "Title": title, "Link": link})
-        except:
-            continue
-    return alerts
-
 # --- 3. 사이드바 ---
 with st.sidebar:
-    # 1. 주요 공시 알림 (안전 장치 메시지 추가)
-    st.subheader("🔔 주요 공시 알림 (Alerts)")
-    
-    if not YF_AVAILABLE:
-        st.warning("⚠️ 서버에 'yfinance' 라이브러리가 없습니다. 공시 알림 기능이 비활성화되었습니다.")
-        st.caption("Tip: requirements.txt 파일을 확인하거나 서버를 재부팅하세요.")
-    else:
-        with st.spinner("공시 정보 조회 중..."):
-            recent_alerts = fetch_company_news(TICKER_MAP)
-        
-        if recent_alerts:
-            for alert in recent_alerts:
-                with st.expander(f"🚨 {alert['Buyer']} 주요 소식", expanded=True):
-                    st.error(alert['Title'])
-                    st.markdown(f"[기사 원문 보기]({alert['Link']})")
-        else:
-            st.success("최근 24시간 내 주요 특이사항 없음")
-        
-    st.markdown("---")
-
-    # 2. 관리자 설정
     st.header("⚙️ 관리자 설정")
     admin_pw = st.text_input("관리자 비밀번호", type="password")
     
@@ -183,7 +124,7 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # 3. 환율 정보
+    # 환율 정보
     st.header("💱 국가별 환율 (USD 기준)")
     st.caption("※ 최근 30일 추이 (Simulation Data)")
 
