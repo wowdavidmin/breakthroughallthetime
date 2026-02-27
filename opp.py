@@ -1,129 +1,341 @@
-import streamlit as st
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
 import pandas as pd
 from datetime import datetime
-import io
+import os
+import webbrowser  # 웹 브라우저 연동 모듈
 
-# 1. 페이지 설정
-st.set_page_config(page_title="Global Apparel Production Manager", layout="wide")
+class ProductionManagerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Global Apparel Production Manager (Seoul HQ)")
+        self.root.geometry("1300x850")
 
-# 2. 초기 데이터 및 설정 (기존 FACTORY_INFO 복원)
-if 'FACTORY_INFO' not in st.session_state:
-    st.session_state.FACTORY_INFO = {
-        "베트남(VNM)":      {"Region": "Asia", "Main": 30, "Outsourced": 20},
-        "인도네시아(IDN)":   {"Region": "Asia", "Main": 25, "Outsourced": 15},
-        "미얀마(MMR-내수)":  {"Region": "Asia", "Main": 20, "Outsourced": 10},
-        "과테말라(GTM)":     {"Region": "Central America", "Main": 20, "Outsourced": 10},
-        "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5},
-        "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5}
-    }
+        self.FACTORY_INFO = {
+            "베트남(VNM)":      {"Region": "Asia", "Main": 30, "Outsourced": 20},
+            "인도네시아(IDN)":   {"Region": "Asia", "Main": 25, "Outsourced": 15},
+            "미얀마(MMR-내수)":  {"Region": "Asia", "Main": 20, "Outsourced": 10},
+            "과테말라(GTM)":     {"Region": "Central America", "Main": 20, "Outsourced": 10},
+            "니카라과(NIC)":     {"Region": "Central America", "Main": 20, "Outsourced": 5},
+            "아이티(HTI)":       {"Region": "Central America", "Main": 10, "Outsourced": 5}
+        }
 
-if 'production_data' not in st.session_state:
-    st.session_state.production_data = []
+        self.data = []
+        self.history_log = [] 
+        self.filename = "production_schedule_final.xlsx"
+        self.status_labels = {} 
 
-# 3. 사이드바 - 관리자 모드 (Admin)
-with st.sidebar:
-    st.header("⚙️ 시스템 설정 (Admin)")
-    admin_pw = st.text_input("관리자 비번", type="password")
-    if admin_pw == "1234":
-        st.success("인증 완료")
-        with st.expander("Capa 설정 변경"):
-            for factory, info in st.session_state.FACTORY_INFO.items():
-                st.write(f"**{factory}**")
-                new_main = st.number_input(f"{factory} 본공장", value=info["Main"], key=f"m_{factory}")
-                new_out = st.number_input(f"{factory} 외주", value=info["Outsourced"], key=f"o_{factory}")
-                st.session_state.FACTORY_INFO[factory]["Main"] = new_main
-                st.session_state.FACTORY_INFO[factory]["Outsourced"] = new_out
+        self.create_widgets()
+        self.update_dashboard_text() 
 
-# 4. 메인 화면 타이틀
-st.title("🏭 글로벌 생산 관리 시스템 (Seoul HQ)")
-st.divider()
-
-# 5. 국가별 공장 가동 현황 대시보드
-st.subheader("📊 국가별 공장 가동 현황 (사용량 / 전체 Capa)")
-usage = {f: {"Main": 0, "Outsourced": 0} for f in st.session_state.FACTORY_INFO}
-for item in st.session_state.production_data:
-    if item["국가"] in usage:
-        usage[item["국가"]][item["생산구분"]] += item["사용라인"]
-
-cols = st.columns(len(st.session_state.FACTORY_INFO))
-for i, (factory, info) in enumerate(st.session_state.FACTORY_INFO.items()):
-    with cols[i]:
-        m_used = usage[factory]["Main"]
-        m_capa = info["Main"]
-        o_used = usage[factory]["Outsourced"]
-        o_capa = info["Outsourced"]
+    def create_widgets(self):
+        top_frame = ttk.Frame(self.root)
+        top_frame.pack(fill="x", padx=10, pady=5)
         
-        st.markdown(f"**{factory}**")
-        st.caption(f"본공장: {m_used} / {m_capa}")
-        st.progress(min(m_used/m_capa, 1.0) if m_capa > 0 else 0)
-        st.caption(f"외주: {o_used} / {o_capa}")
-        st.progress(min(o_used/o_capa, 1.0) if o_capa > 0 else 0)
+        ttk.Label(top_frame, text="글로벌 생산 관리 시스템", font=("bold", 14)).pack(side="left")
+        ttk.Button(top_frame, text="⚙️ 시스템 설정 (Admin)", command=self.open_admin_mode).pack(side="right")
 
-st.divider()
+        self.dash_frame = ttk.LabelFrame(self.root, text="🏭 국가별 공장 가동 현황 (사용량 / 전체 Capa)", padding=5)
+        self.dash_frame.pack(fill="x", padx=10, pady=5)
+        self.create_dashboard_labels()
 
-# 6. 생산 오더 입력 폼
-st.subheader("📝 생산 오더 입력")
-with st.form("order_form", clear_on_submit=True):
-    c1, c2, c3, c4 = st.columns(4)
-    buyer = c1.text_input("바이어")
-    style = c2.text_input("스타일")
-    qty = c3.number_input("수량(Q'ty)", min_value=0, step=100)
-    date = c4.date_input("납기일", datetime.now())
-    
-    c5, c6, c7, c8 = st.columns(4)
-    country = c5.selectbox("국가 선택", list(st.session_state.FACTORY_INFO.keys()))
-    p_type = c6.selectbox("생산 구분", ["Main", "Outsourced"])
-    factory_name = c7.text_input("상세 공장명", value="공장 이름 입력")
-    lines = c8.number_input("필요 라인", min_value=1, step=1)
-    
-    submit = st.form_submit_button("오더 등록 (Add)")
-    
-    if submit:
-        if buyer and style:
-            # Capa 체크 로직
-            current_total = usage[country][p_type]
-            limit = st.session_state.FACTORY_INFO[country][p_type]
+        input_frame = ttk.LabelFrame(self.root, text="생산 오더 입력", padding=15)
+        input_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(input_frame, text="바이어:").grid(row=0, column=0, sticky="e", padx=5)
+        self.entry_buyer = ttk.Entry(input_frame, width=15)
+        self.entry_buyer.grid(row=0, column=1, padx=5)
+
+        # [변경됨] 구글 검색 버튼
+        btn_info = ttk.Button(input_frame, text="📊 기업정보 조회(Google)", command=self.open_company_info, width=20)
+        btn_info.grid(row=0, column=2, padx=2) 
+        
+        ttk.Label(input_frame, text="스타일:").grid(row=0, column=3, sticky="e", padx=5)
+        self.entry_style = ttk.Entry(input_frame, width=15)
+        self.entry_style.grid(row=0, column=4, padx=5)
+
+        ttk.Label(input_frame, text="수량(Q'ty):").grid(row=0, column=5, sticky="e", padx=5)
+        self.entry_qty = ttk.Entry(input_frame, width=15)
+        self.entry_qty.grid(row=0, column=6, padx=5)
+
+        ttk.Label(input_frame, text="납기일:").grid(row=0, column=7, sticky="e", padx=5)
+        self.entry_date = ttk.Entry(input_frame, width=12)
+        self.entry_date.grid(row=0, column=8, padx=5)
+        self.entry_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
+
+        ttk.Label(input_frame, text="국가 선택:").grid(row=1, column=0, sticky="e", padx=5, pady=10)
+        self.combo_country = ttk.Combobox(input_frame, values=list(self.FACTORY_INFO.keys()), width=13)
+        self.combo_country.grid(row=1, column=1, padx=5, pady=10)
+        self.combo_country.current(0)
+
+        ttk.Label(input_frame, text="").grid(row=1, column=2)
+
+        ttk.Label(input_frame, text="생산 구분:").grid(row=1, column=3, sticky="e", padx=5, pady=10)
+        self.combo_type = ttk.Combobox(input_frame, values=["Main", "Outsourced"], state="readonly", width=13)
+        self.combo_type.grid(row=1, column=4, padx=5, pady=10)
+        self.combo_type.current(0)
+
+        ttk.Label(input_frame, text="상세 공장명:").grid(row=1, column=5, sticky="e", padx=5, pady=10)
+        self.entry_factory_name = ttk.Entry(input_frame, width=15)
+        self.entry_factory_name.grid(row=1, column=6, padx=5, pady=10)
+        self.entry_factory_name.insert(0, "공장 이름 입력")
+
+        ttk.Label(input_frame, text="필요 라인:").grid(row=1, column=7, sticky="e", padx=5, pady=10)
+        self.entry_lines = ttk.Entry(input_frame, width=5)
+        self.entry_lines.grid(row=1, column=8, padx=5, pady=10)
+        self.entry_lines.insert(0, "1")
+
+        btn_frame = ttk.Frame(input_frame)
+        btn_frame.grid(row=2, column=0, columnspan=9, pady=5)
+        ttk.Button(btn_frame, text="오더 등록 (Add)", command=self.add_order).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="엑셀 저장 (Export)", command=self.export_to_excel).pack(side="left", padx=5)
+
+        list_frame = ttk.LabelFrame(self.root, text="오더 리스트", padding=10)
+        list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        cols = ("buyer", "style", "qty", "country", "type", "detail_name", "lines")
+        self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=8)
+        
+        headers = ["바이어", "스타일", "수량", "국가", "구분", "상세 공장명", "라인수"]
+        widths = [100, 100, 80, 120, 80, 150, 60]
+
+        for col, h, w in zip(cols, headers, widths):
+            self.tree.heading(col, text=h)
+            self.tree.column(col, width=w, anchor="center")
+        
+        self.tree.pack(fill="both", expand=True)
+
+    # --- [변경됨] 구글 검색 기능 ---
+    def open_company_info(self):
+        buyer_name = self.entry_buyer.get().strip()
+        if not buyer_name:
+            messagebox.showwarning("입력 필요", "바이어 이름을 먼저 입력해주세요.")
+            return
+        
+        # 구글 검색 URL 생성
+        query = f"{buyer_name} 기업 실적 신용도"
+        url = f"https://www.google.com/search?q={query}"
+        webbrowser.open(url)
+
+    def create_dashboard_labels(self):
+        for widget in self.dash_frame.winfo_children():
+            widget.destroy()
+        
+        self.status_labels = {}
+        for factory in self.FACTORY_INFO:
+            f_frame = ttk.Frame(self.dash_frame, borderwidth=2, relief="groove")
+            f_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
             
-            if current_total + lines > limit:
-                st.warning(f"⚠️ {country} {p_type} Capa 초과! (잔여: {limit-current_total})")
+            ttk.Label(f_frame, text=factory, font=("bold", 10)).pack(pady=(5, 10))
+
+            lbl_main = ttk.Label(f_frame, text="본공장: - / -", font=("Arial", 9))
+            lbl_main.pack(anchor="w", padx=10, pady=2)
             
-            new_order = {
-                "바이어": buyer, "스타일": style, "수량": f"{qty:,}",
-                "국가": country, "생산구분": p_type, 
-                "상세공장명": factory_name, "사용라인": lines, "납기일": str(date)
-            }
-            st.session_state.production_data.append(new_order)
-            st.success("오더가 등록되었습니다.")
-            st.rerun()
+            lbl_out = ttk.Label(f_frame, text="외주 : - / -", font=("Arial", 9))
+            lbl_out.pack(anchor="w", padx=10, pady=2)
+
+            self.status_labels[factory] = {"Main": lbl_main, "Outsourced": lbl_out}
+
+    def update_dashboard_text(self):
+        usage_data = {f: {"Main": 0, "Outsourced": 0} for f in self.FACTORY_INFO}
+        for item in self.data:
+            if item["국가"] in usage_data:
+                usage_data[item["국가"]][item["생산구분"]] += int(item["사용라인"])
+
+        for factory, labels in self.status_labels.items():
+            m_used = usage_data[factory]["Main"]
+            m_capa = self.FACTORY_INFO[factory]["Main"]
+            m_text = f"본공장: {m_used} / {m_capa}"
+            m_color = "red" if m_used >= m_capa and m_capa > 0 else "black"
+            labels["Main"].config(text=m_text, foreground=m_color)
+
+            o_used = usage_data[factory]["Outsourced"]
+            o_capa = self.FACTORY_INFO[factory]["Outsourced"]
+            o_text = f"외주 : {o_used} / {o_capa}"
+            o_color = "red" if o_used >= o_capa and o_capa > 0 else "black"
+            labels["Outsourced"].config(text=o_text, foreground=o_color)
+
+    def open_admin_mode(self):
+        password = simpledialog.askstring("관리자 인증", "관리자 비밀번호를 입력하세요:", show='*')
+        if password == "1234":
+            self.show_settings_window()
+        elif password is None:
+            return 
         else:
-            st.error("바이어와 스타일을 입력해주세요.")
+            messagebox.showerror("인증 실패", "비밀번호가 틀렸습니다.")
 
-# 7. 오더 리스트 및 엑셀 저장
-st.subheader("📋 오더 리스트")
-if st.session_state.production_data:
-    df = pd.DataFrame(st.session_state.production_data)
-    st.table(df)
-    
-    # 엑셀 다운로드 버튼 (Export 기능)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
-    
-    st.download_button(
-        label="📥 엑셀 저장 (Export)",
-        data=output.getvalue(),
-        file_name=f"production_schedule_{datetime.now().strftime('%Y%m%d')}.xlsx",
-        mime="application/vnd.ms-excel"
-    )
-else:
-    st.write("등록된 오더가 없습니다.")
+    def show_settings_window(self):
+        self.settings_win = tk.Toplevel(self.root)
+        self.settings_win.title("관리자 모드 (설정 변경 및 수정 이력 조회 가능)")
+        self.settings_win.geometry("600x600")
+        
+        notebook = ttk.Notebook(self.settings_win)
+        notebook.pack(fill='both', expand=True, padx=10, pady=10)
 
-# 8. 바이어 조회 (Google / Gemini 링크)
-st.divider()
-st.subheader("🔍 바이어 정보 조회")
-search_buyer = st.text_input("조회할 바이어 이름")
-col_b1, col_b2 = st.columns(2)
-if search_buyer:
-    col_b1.link_button("🔍 Google 검색", f"https://www.google.com/search?q={search_buyer}+기업+실적+신용도")
-    col_b2.link_button("✨ Gemini 질문", f"https://gemini.google.com/app")
-    st.info(f"Tip: Gemini에 접속 후 '{search_buyer} 기업의 최근 실적과 신용도에 대해 알려줘'라고 물어보세요.")
+        tab_settings = ttk.Frame(notebook)
+        notebook.add(tab_settings, text="Capa 설정 변경")
+
+        tab_history = ttk.Frame(notebook)
+        notebook.add(tab_history, text="수정 이력 조회")
+
+        ttk.Label(tab_settings, text="각 국가별 전체 라인 수를 수정하세요.", font=("bold", 10)).pack(pady=10)
+        container = ttk.Frame(tab_settings)
+        container.pack(pady=5, padx=10, fill="both", expand=True)
+        self.capa_entries = {}
+
+        for idx, (factory, info) in enumerate(self.FACTORY_INFO.items()):
+            lbl = ttk.Label(container, text=factory, font=("bold", 9))
+            lbl.grid(row=idx, column=0, sticky="w", pady=8)
+            
+            ttk.Label(container, text="본공장:").grid(row=idx, column=1, sticky="e", padx=5)
+            entry_main = ttk.Entry(container, width=5)
+            entry_main.insert(0, str(info["Main"]))
+            entry_main.grid(row=idx, column=2, padx=5)
+
+            ttk.Label(container, text="외주:").grid(row=idx, column=3, sticky="e", padx=5)
+            entry_out = ttk.Entry(container, width=5)
+            entry_out.insert(0, str(info["Outsourced"]))
+            entry_out.grid(row=idx, column=4, padx=5)
+
+            self.capa_entries[factory] = {"Main": entry_main, "Outsourced": entry_out}
+
+        ttk.Button(tab_settings, text="변경사항 저장 (Save)", command=self.save_settings).pack(pady=15)
+
+        cols = ("time", "factory", "type", "old_val", "new_val")
+        self.history_tree = ttk.Treeview(tab_history, columns=cols, show="headings")
+        
+        self.history_tree.heading("time", text="수정 시간")
+        self.history_tree.heading("factory", text="국가")
+        self.history_tree.heading("type", text="구분")
+        self.history_tree.heading("old_val", text="변경 전")
+        self.history_tree.heading("new_val", text="변경 후")
+        
+        self.history_tree.column("time", width=140, anchor="center")
+        self.history_tree.column("factory", width=120, anchor="center")
+        self.history_tree.column("type", width=70, anchor="center")
+        self.history_tree.column("old_val", width=60, anchor="center")
+        self.history_tree.column("new_val", width=60, anchor="center")
+
+        self.history_tree.pack(fill="both", expand=True, padx=5, pady=5)
+
+        for log in self.history_log:
+            self.history_tree.insert("", "end", values=(log["time"], log["factory"], log["type"], log["old_val"], log["new_val"]))
+
+    def save_settings(self):
+        try:
+            new_info = {}
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            changes_made = False
+
+            for factory, entries in self.capa_entries.items():
+                m_val_str = entries["Main"].get()
+                o_val_str = entries["Outsourced"].get()
+
+                if not (m_val_str.isdigit() and o_val_str.isdigit()):
+                    raise ValueError(f"{factory}의 값은 모두 숫자여야 합니다.")
+                
+                new_main = int(m_val_str)
+                new_out = int(o_val_str)
+                
+                old_main = self.FACTORY_INFO[factory]["Main"]
+                old_out = self.FACTORY_INFO[factory]["Outsourced"]
+
+                if old_main != new_main:
+                    self.history_log.append({
+                        "time": current_time, "factory": factory, "type": "Main", 
+                        "old_val": old_main, "new_val": new_main
+                    })
+                    changes_made = True
+
+                if old_out != new_out:
+                    self.history_log.append({
+                        "time": current_time, "factory": factory, "type": "Outsourced", 
+                        "old_val": old_out, "new_val": new_out
+                    })
+                    changes_made = True
+
+                current_region = self.FACTORY_INFO[factory]["Region"]
+                new_info[factory] = {
+                    "Region": current_region,
+                    "Main": new_main,
+                    "Outsourced": new_out
+                }
+
+            self.FACTORY_INFO = new_info
+            
+            self.create_dashboard_labels() 
+            self.update_dashboard_text()
+            
+            if changes_made:
+                messagebox.showinfo("완료", "설정이 업데이트되고 이력이 기록되었습니다.")
+            else:
+                messagebox.showinfo("알림", "변경된 내용이 없습니다.")
+
+            self.settings_win.destroy()
+            
+        except ValueError as e:
+            messagebox.showerror("입력 오류", str(e))
+
+    def add_order(self):
+        buyer = self.entry_buyer.get()
+        style = self.entry_style.get()
+        qty = self.entry_qty.get()
+        country = self.combo_country.get()
+        prod_type = self.combo_type.get()
+        detail_name = self.entry_factory_name.get()
+        lines = self.entry_lines.get()
+
+        if not (buyer and style and qty and lines):
+            messagebox.showwarning("입력 오류", "필수 항목을 모두 입력하세요.")
+            return
+        
+        if not lines.isdigit() or int(lines) <= 0:
+             messagebox.showerror("입력 오류", "라인 수는 1 이상의 숫자여야 합니다.")
+             return
+
+        current_used = sum([item['사용라인'] for item in self.data 
+                            if item['국가'] == country and item['생산구분'] == prod_type])
+        limit = self.FACTORY_INFO[country][prod_type]
+
+        if current_used + int(lines) > limit:
+            msg = f"{country} [{prod_type}] 잔여 라인이 부족합니다.\n(잔여: {limit - current_used} / 필요: {lines})\n강제 배정하시겠습니까?"
+            if not messagebox.askyesno("Capa 초과 경고", msg):
+                return
+
+        row = {
+            "바이어": buyer, "스타일": style, "수량": qty,
+            "국가": country, "생산구분": prod_type, 
+            "상세공장명": detail_name,
+            "사용라인": int(lines)
+        }
+        self.data.append(row)
+        
+        self.tree.insert("", "end", values=(buyer, style, f"{int(qty):,}", country, prod_type, detail_name, lines))
+        
+        self.update_dashboard_text()
+        self.clear_inputs()
+
+    def clear_inputs(self):
+        self.entry_buyer.delete(0, 'end')
+        self.entry_style.delete(0, 'end')
+        self.entry_qty.delete(0, 'end')
+        self.entry_lines.delete(0, 'end')
+        self.entry_lines.insert(0, "1")
+        self.entry_factory_name.delete(0, 'end')
+        self.entry_factory_name.insert(0, "공장 이름 입력")
+
+    def export_to_excel(self):
+        if not self.data:
+            messagebox.showwarning("알림", "저장할 데이터가 없습니다.")
+            return
+        try:
+            df = pd.DataFrame(self.data)
+            df.to_excel(self.filename, index=False)
+            messagebox.showinfo("성공", f"엑셀 저장 완료: {self.filename}")
+        except Exception as e:
+            messagebox.showerror("에러", str(e))
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ProductionManagerApp(root)
+    root.mainloop()
