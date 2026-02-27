@@ -1,152 +1,103 @@
-import time
+import streamlit as st
+import pandas as pd
 import random
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 
-# --- [상수 및 설정 데이터] ---
-REGIONS = ["Asia", "North America", "Europe", "Middle East"]
-TRANSPORT_MODES = {
-    "SEA": {"speed": 20, "cost_factor": 1.0, "risk_buffer": 0.2},
-    "AIR": {"speed": 80, "cost_factor": 5.5, "risk_buffer": 0.05},
-    "ROAD": {"speed": 40, "cost_factor": 2.0, "risk_buffer": 0.1}
-}
+# 1. 페이지 레이아웃 및 스타일 설정
+st.set_page_config(page_title="Global Supply Chain Management", layout="wide")
 
-# --- [1. 거점(Node) 및 재고 관리 모듈] ---
+# --- [Core Logic: 1월 27일자 엔진 복원] ---
 class SupplyChainNode:
-    def __init__(self, name, region, initial_stock, capacity):
+    def __init__(self, name, region, stock, capacity):
         self.node_id = str(uuid.uuid4())[:8]
         self.name = name
         self.region = region
-        self.stock = initial_stock
+        self.stock = stock
         self.capacity = capacity
-        self.base_risk = random.uniform(0.05, 0.15) # 지역 기본 리스크
+        self.base_risk = random.uniform(0.05, 0.2)
         self.current_risk = self.base_risk
 
     def update_risk(self):
-        """실시간 리스크 변동 시뮬레이션 (기상, 정치, 파업 등)"""
-        fluctuation = random.uniform(-0.05, 0.2)
-        self.current_risk = max(0.0, min(1.0, self.base_risk + fluctuation))
+        # 실시간 리스크 변동 시뮬레이션
+        self.current_risk = max(0.0, min(1.0, self.base_risk + random.uniform(-0.1, 0.3)))
 
-    def get_status(self):
-        fill_rate = (self.stock / self.capacity) * 100
-        status = "정상" if self.current_risk < 0.25 else "주의" if self.current_risk < 0.5 else "위험"
-        return {
-            "ID": self.node_id,
-            "이름": self.name,
-            "지역": self.region,
-            "재고량": self.stock,
-            "가동률": f"{fill_rate:.1f}%",
-            "리스크상태": status
-        }
+# --- [Session State: 데이터 유지 설정] ---
+if 'system_initialized' not in st.session_state:
+    st.session_state.nodes = {
+        "상하이 본사": SupplyChainNode("상하이 본사", "Asia", 10000, 15000),
+        "베트남 공장": SupplyChainNode("베트남 공장", "Asia", 5000, 8000),
+        "프랑크푸르트 창고": SupplyChainNode("프랑크푸르트 창고", "Europe", 2000, 5000),
+        "뉴욕 물류센터": SupplyChainNode("뉴욕 물류센터", "North America", 1500, 6000)
+    }
+    st.session_state.logs = []
+    st.session_state.system_initialized = True
 
-# --- [2. 물류 이동 및 최적화 엔진] ---
-class LogisticsOptimizer:
-    @staticmethod
-    def calculate_best_route(origin, destination, priority="COST"):
-        """
-        리스크와 비용을 고려한 최적 운송 수단 결정
-        priority: "COST" (비용 중심) 또는 "SPEED" (속도 중심)
-        """
-        combined_risk = origin.current_risk + destination.current_risk
+# --- [UI Header] ---
+st.title("🌐 글로벌 공급망 통합 관리 시스템 (GSCMS)")
+st.markdown(f"**시스템 상태:** 온라인 | **기준 시간:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.divider()
+
+# --- [Main Dashboard] ---
+# 1. 상단 지표 (KPI Metrics)
+col1, col2, col3, col4 = st.columns(4)
+total_stock = sum(n.stock for n in st.session_state.nodes.values())
+avg_risk = sum(n.current_risk for n in st.session_state.nodes.values()) / len(st.session_state.nodes)
+
+col1.metric("전체 재고량", f"{total_stock:,} 단위")
+col2.metric("운영 거점", f"{len(st.session_state.nodes)}개소")
+col3.metric("평균 리스크 지수", f"{avg_risk:.2f}")
+col4.metric("시스템 건전성", "Stable", delta="Good")
+
+# 2. 거점 현황 테이블 (데이터 시각화)
+st.subheader("📊 글로벌 거점 실시간 현황")
+node_list = []
+for name, node in st.session_state.nodes.items():
+    node.update_risk() # 화면 갱신 때마다 리스크 업데이트
+    fill_rate = (node.stock / node.capacity) * 100
+    status = "🔴 위험" if node.current_risk > 0.4 else "🟡 주의" if node.current_risk > 0.2 else "🟢 정상"
+    node_list.append({
+        "거점명": node.name,
+        "지역": node.region,
+        "현재 재고": f"{node.stock:,}",
+        "가동률": f"{fill_rate:.1f}%",
+        "리스크 지수": round(node.current_risk, 3),
+        "상태": status
+    })
+
+df = pd.DataFrame(node_list)
+st.dataframe(df, use_container_width=True)
+
+# 3. 물류 제어 센터 (사이드바)
+with st.sidebar:
+    st.header("🚚 물류 이동 제어")
+    sender = st.selectbox("출발지(Origin)", list(st.session_state.nodes.keys()))
+    receiver = st.selectbox("도착지(Destination)", [k for k in st.session_state.nodes.keys() if k != sender])
+    amount = st.number_input("이동 수량", min_value=10, max_value=5000, value=500)
+    
+    priority = st.radio("우선순위", ["비용 최적화(SEA)", "속도 최적화(AIR)"])
+    
+    if st.button("재고 이동 확정"):
+        s_node = st.session_state.nodes[sender]
+        r_node = st.session_state.nodes[receiver]
         
-        # 리스크가 임계값을 넘으면 무조건 가장 안전한 AIR(항공) 모드 강제
-        if combined_risk > 0.6:
-            return "AIR", "안전을 위한 우회 경로 선택"
-        
-        if priority == "SPEED":
-            return "AIR", "긴급 배송 모드"
+        if s_node.stock >= amount:
+            # 로직 실행
+            s_node.stock -= amount
+            r_node.stock += amount
+            
+            # 로그 기록
+            mode = "AIR" if priority == "속도 최적화(AIR)" or (s_node.current_risk + r_node.current_risk > 0.5) else "SEA/ROAD"
+            tx_id = str(uuid.uuid4()).upper()[:8]
+            log_entry = f"[{tx_id}] {sender} → {receiver} | {amount}개 이동 완료 (운송모드: {mode})"
+            st.session_state.logs.insert(0, log_entry)
+            st.success(f"트랜잭션 {tx_id} 성공!")
+            st.rerun()
         else:
-            return "SEA" if origin.region != destination.region else "ROAD", "표준 최적 경로"
+            st.error("오류: 출발지의 재고가 부족합니다.")
 
-# --- [3. 통합 관리 시스템 클래스 (Main System)] ---
-class GSCMS_Core:
-    def __init__(self):
-        self.nodes = {}
-        self.transaction_history = []
-        self.system_log = []
-
-    def register_node(self, node):
-        self.nodes[node.name] = node
-        self._add_log(f"거점 등록 완료: {node.name} ({node.region})")
-
-    def _add_log(self, message):
-        entry = f"[{datetime.now().strftime('%H:%M:%S')}] {message}"
-        self.system_log.append(entry)
-        print(entry)
-
-    def process_order(self, sender_name, receiver_name, amount, priority="COST"):
-        """전체 주문 처리 프로세스"""
-        if sender_name not in self.nodes or receiver_name not in self.nodes:
-            self._add_log("❌ 오류: 등록되지 않은 거점입니다.")
-            return
-
-        sender = self.nodes[sender_name]
-        receiver = self.nodes[receiver_name]
-
-        # 1. 재고 체크
-        if sender.stock < amount:
-            self._add_log(f"⚠️ 재고 부족: {sender_name} (보유: {sender.stock}, 요청: {amount})")
-            return
-
-        # 2. 리스크 업데이트 및 경로 최적화
-        sender.update_risk()
-        receiver.update_risk()
-        mode, reason = LogisticsOptimizer.calculate_best_route(sender, receiver, priority)
-
-        # 3. 이동 실행
-        sender.stock -= amount
-        receiver.stock += amount
-
-        # 4. 트랜잭션 기록
-        tx_id = str(uuid.uuid4()).upper()[:12]
-        tx_data = {
-            "TX_ID": tx_id,
-            "출발": sender_name,
-            "도착": receiver_name,
-            "수량": amount,
-            "운송수단": mode,
-            "사유": reason
-        }
-        self.transaction_history.append(tx_data)
-        self._add_log(f"✅ 주문 처리 완료 [{tx_id}]: {sender_name} -> {receiver_name} ({amount} units via {mode})")
-
-    def print_inventory_report(self):
-        print("\n" + "="*80)
-        print(f" {datetime.now().year} 글로벌 공급망 통합 재고 현황 리포트 ")
-        print("="*80)
-        print(f"{'ID':<10} | {'거점명':<15} | {'지역':<12} | {'재고':<8} | {'가동률':<8} | {'상태'}")
-        print("-"*80)
-        for name, node in self.nodes.items():
-            s = node.get_status()
-            print(f"{s['ID']:<10} | {s['이름']:<15} | {s['지역']:<12} | {s['재고량']:<10} | {s['가동률']:<8} | {s['리스크상태']}")
-        print("="*80 + "\n")
-
-# --- [4. 시스템 구동 시뮬레이션] ---
-def main():
-    # 시스템 초기화
-    gscms = GSCMS_Core()
-
-    # 글로벌 거점 셋업
-    gscms.register_node(SupplyChainNode("상하이 본사", "Asia", 10000, 15000))
-    gscms.register_node(SupplyChainNode("베트남 공장", "Asia", 5000, 8000))
-    gscms.register_node(SupplyChainNode("프랑크푸르트 창고", "Europe", 2000, 5000))
-    gscms.register_node(SupplyChainNode("뉴욕 물류센터", "North America", 1500, 6000))
-
-    # 주기적 업무 시뮬레이션
-    gscms.print_inventory_report()
-
-    print("\n[업무 프로세스 개시]")
-    # 업무 1: 아시아 내 재고 보충
-    gscms.process_order("상하이 본사", "베트남 공장", 2000)
-    
-    # 업무 2: 유럽으로 긴급 수출 (Priority: SPEED)
-    gscms.process_order("상하이 본사", "프랑크푸르트 창고", 1500, priority="SPEED")
-    
-    # 업무 3: 북미 지역 리스크 발생 가정 시뮬레이션
-    gscms.process_order("베트남 공장", "뉴욕 물류센터", 3000)
-
-    # 최종 상태 확인
-    gscms.print_inventory_report()
-
-if __name__ == "__main__":
-    main()
+# 4. 하단 시스템 로그
+st.divider()
+st.subheader("📋 시스템 활동 로그 (최근 5건)")
+for log in st.session_state.logs[:5]:
+    st.code(log)
